@@ -12,6 +12,9 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"></script>
 </head>
 <body>
+    <!-- Фоновое изображение -->
+    <div class="background-overlay"></div>
+    
     <!-- Навигация -->
     <nav class="navbar">
         <div class="nav-container">
@@ -20,142 +23,226 @@
                 <span>BookShelf</span>
             </div>
             <div class="nav-links" id="navLinks">
-                <a href="#" id="homeLink">Главная</a>
-                <a href="#" id="profileLink">Моя полка</a>
-                <a href="#" id="clubsLink">Клубы</a>
-                <a href="#" id="friendsLink">Друзья</a>
+                <a href="#" id="homeLink" class="nav-link active">Главная</a>
+                <a href="#" id="profileLink" class="nav-link">Моя полка</a>
+                <a href="#" id="clubsLink" class="nav-link">Клубы</a>
+                <a href="#" id="friendsLink" class="nav-link">Друзья</a>
             </div>
             <div class="auth-buttons" id="authButtons">
                 <button id="loginBtn" class="btn btn-outline">Войти</button>
                 <button id="registerBtn" class="btn btn-primary">Регистрация</button>
             </div>
             <div class="user-menu" id="userMenu" style="display: none;">
-                <img id="userAvatar" src="https://via.placeholder.com/40" alt="Аватар">
-                <span id="userName"></span>
-                <button id="logoutBtn" class="btn btn-outline">Выйти</button>
+                <img id="userAvatar" src="https://via.placeholder.com/40" alt="Аватар" class="user-avatar">
+                <span id="userName" class="user-name"></span>
+                <button id="logoutBtn" class="btn btn-outline btn-logout">Выйти</button>
             </div>
+            <button class="menu-toggle" id="menuToggle">
+                <i class="fas fa-bars"></i>
+            </button>
         </div>
     </nav>
 
     <!-- Главный контент -->
     <main class="container">
         <!-- Экран загрузки -->
-        <div id="loadingScreen">
+        <div id="loadingScreen" class="loading-screen">
             <div class="spinner"></div>
             <p>Загрузка...</p>
         </div>
 
         <!-- Приветственный экран -->
         <div id="welcomeScreen" class="welcome-screen">
-            <h1>Добро пожаловать в BookShelf!</h1>
-            <p>Ваша личная социальная сеть для книголюбов</p>
-            <div class="features">
-                <div class="feature">
-                    <i class="fas fa-book-open"></i>
-                    <h3>Ведите свою полку</h3>
-                    <p>Отслеживайте прочитанные книги</p>
+            <div class="welcome-content">
+                <h1><i class="fas fa-book"></i> Добро пожаловать в BookShelf!</h1>
+                <p class="welcome-subtitle">Ваша личная социальная сеть для книголюбов</p>
+                <div class="features">
+                    <div class="feature-card">
+                        <i class="fas fa-book-open feature-icon"></i>
+                        <h3>Ведите свою полку</h3>
+                        <p>Отслеживайте прочитанные книги</p>
+                    </div>
+                    <div class="feature-card">
+                        <i class="fas fa-heart feature-icon"></i>
+                        <h3>Списки желаний</h3>
+                        <p>Сохраняйте книги для будущего чтения</p>
+                    </div>
+                    <div class="feature-card">
+                        <i class="fas fa-users feature-icon"></i>
+                        <h3>Книжные клубы</h3>
+                        <p>Обсуждайте книги с единомышленниками</p>
+                    </div>
+                    <div class="feature-card">
+                        <i class="fas fa-star feature-icon"></i>
+                        <h3>Рецензии</h3>
+                        <p>Делитесь своими мнениями о книгах</p>
+                    </div>
                 </div>
-                <div class="feature">
-                    <i class="fas fa-heart"></i>
-                    <h3>Списки желаний</h3>
-                    <p>Сохраняйте книги для будущего чтения</p>
-                </div>
-                <div class="feature">
-                    <i class="fas fa-users"></i>
-                    <h3>Книжные клубы</h3>
-                    <p>Обсуждайте книги с единомышленниками</p>
-                </div>
-                <div class="feature">
-                    <i class="fas fa-star"></i>
-                    <h3>Рецензии</h3>
-                    <p>Делитесь своими мнениями о книгах</p>
+                <div class="welcome-buttons">
+                    <button id="welcomeLoginBtn" class="btn btn-primary btn-large">
+                        <i class="fas fa-sign-in-alt"></i> Начать чтение
+                    </button>
                 </div>
             </div>
         </div>
 
-        <!-- Основной контент (скрыт по умолчанию) -->
+        <!-- Основной контент -->
         <div id="mainContent" class="main-content" style="display: none;">
+            <!-- Заголовок -->
+            <div class="content-header">
+                <h2 id="contentTitle">Моя книжная полка</h2>
+                <div class="user-info" id="userInfo">
+                    <span id="fullUserName"></span>
+                </div>
+            </div>
+
             <!-- Секция добавления книги -->
-            <section class="add-book-section">
-                <h2><i class="fas fa-plus-circle"></i> Добавить книгу</h2>
+            <section class="add-book-section card">
+                <h3><i class="fas fa-plus-circle"></i> Добавить новую книгу</h3>
                 <div class="add-book-form">
-                    <input type="text" id="bookTitle" placeholder="Название книги">
-                    <input type="text" id="bookAuthor" placeholder="Автор">
-                    <select id="bookStatus">
-                        <option value="read">Прочитано</option>
-                        <option value="reading">Читаю сейчас</option>
-                        <option value="want">Хочу прочитать</option>
-                    </select>
-                    <textarea id="bookReview" placeholder="Ваша рецензия (опционально)"></textarea>
-                    <div class="rating">
-                        <span>Оценка: </span>
-                        <div class="stars" id="ratingStars">
-                            <i class="far fa-star" data-rating="1"></i>
-                            <i class="far fa-star" data-rating="2"></i>
-                            <i class="far fa-star" data-rating="3"></i>
-                            <i class="far fa-star" data-rating="4"></i>
-                            <i class="far fa-star" data-rating="5"></i>
-                        </div>
+                    <div class="form-group">
+                        <input type="text" id="bookTitle" placeholder="Название книги *" class="form-input">
                     </div>
-                    <button id="addBookBtn" class="btn btn-primary">Добавить на полку</button>
+                    <div class="form-group">
+                        <input type="text" id="bookAuthor" placeholder="Автор *" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <select id="bookStatus" class="form-select">
+                            <option value="read">Прочитано</option>
+                            <option value="reading">Читаю сейчас</option>
+                            <option value="want">Хочу прочитать</option>
+                        </select>
+                    </div>
+                    <div class="form-group full-width">
+                        <textarea id="bookReview" placeholder="Ваша рецензия (опционально)" class="form-textarea"></textarea>
+                    </div>
+                    <div class="form-group full-width">
+                        <label class="rating-label">Оценка:</label>
+                        <div class="stars" id="ratingStars">
+                            <i class="far fa-star star" data-rating="1"></i>
+                            <i class="far fa-star star" data-rating="2"></i>
+                            <i class="far fa-star star" data-rating="3"></i>
+                            <i class="far fa-star star" data-rating="4"></i>
+                            <i class="far fa-star star" data-rating="5"></i>
+                        </div>
+                        <span id="ratingValue" class="rating-value">0/5</span>
+                    </div>
+                    <div class="form-group full-width">
+                        <button id="addBookBtn" class="btn btn-primary btn-block">
+                            <i class="fas fa-plus"></i> Добавить на полку
+                        </button>
+                    </div>
                 </div>
             </section>
 
             <!-- Полки пользователя -->
-            <section class="bookshelves">
-                <div class="shelf-tabs">
-                    <button class="shelf-tab active" data-shelf="read">Прочитано</button>
-                    <button class="shelf-tab" data-shelf="reading">Читаю сейчас</button>
-                    <button class="shelf-tab" data-shelf="want">Хочу прочитать</button>
+            <section class="bookshelves-section card">
+                <div class="section-header">
+                    <h3><i class="fas fa-books"></i> Мои книги</h3>
+                    <div class="books-count">
+                        <span id="booksCount">0 книг</span>
+                    </div>
                 </div>
+                
+                <div class="shelf-tabs">
+                    <button class="shelf-tab active" data-shelf="read">
+                        <i class="fas fa-check-circle"></i> Прочитано
+                    </button>
+                    <button class="shelf-tab" data-shelf="reading">
+                        <i class="fas fa-book-open"></i> Читаю сейчас
+                    </button>
+                    <button class="shelf-tab" data-shelf="want">
+                        <i class="fas fa-heart"></i> Хочу прочитать
+                    </button>
+                </div>
+                
                 <div class="shelf-content">
                     <div class="books-grid" id="booksGrid">
                         <!-- Книги будут загружаться здесь -->
+                        <div class="empty-state" id="emptyState">
+                            <i class="fas fa-book-open empty-icon"></i>
+                            <p>На этой полке пока нет книг</p>
+                            <p class="empty-hint">Добавьте свою первую книгу!</p>
+                        </div>
                     </div>
                 </div>
             </section>
 
             <!-- Друзья и клубы -->
             <section class="social-section">
-                <div class="friends-preview">
-                    <h3><i class="fas fa-user-friends"></i> Друзья</h3>
+                <div class="friends-preview card">
+                    <div class="section-header">
+                        <h3><i class="fas fa-user-friends"></i> Друзья</h3>
+                        <button class="btn btn-outline btn-small">Все друзья</button>
+                    </div>
                     <div id="friendsList" class="friends-list">
-                        <!-- Список друзей -->
+                        <!-- Друзья будут загружаться здесь -->
                     </div>
                 </div>
-                <div class="clubs-preview">
-                    <h3><i class="fas fa-users"></i> Книжные клубы</h3>
+                
+                <div class="clubs-preview card">
+                    <div class="section-header">
+                        <h3><i class="fas fa-users"></i> Книжные клубы</h3>
+                        <button class="btn btn-outline btn-small">Все клубы</button>
+                    </div>
                     <div id="clubsList" class="clubs-list">
-                        <!-- Список клубов -->
+                        <!-- Клубы будут загружаться здесь -->
                     </div>
                 </div>
             </section>
         </div>
+    </main>
 
-        <!-- Модальные окна -->
-        <div id="authModal" class="modal">
-            <div class="modal-content">
-                <span class="close">&times;</span>
-                <h2 id="modalTitle">Вход</h2>
-                <div class="auth-tabs">
-                    <button id="loginTab" class="auth-tab active">Вход</button>
-                    <button id="registerTab" class="auth-tab">Регистрация</button>
+    <!-- Модальное окно авторизации -->
+    <div id="authModal" class="modal">
+        <div class="modal-content auth-modal">
+            <button class="close-modal" id="closeModal">&times;</button>
+            <div class="modal-header">
+                <h2 id="modalTitle">Вход в BookShelf</h2>
+                <p class="modal-subtitle">Присоединяйтесь к сообществу книголюбов</p>
+            </div>
+            
+            <div class="auth-tabs">
+                <button id="loginTab" class="auth-tab active">Вход</button>
+                <button id="registerTab" class="auth-tab">Регистрация</button>
+            </div>
+            
+            <form id="authForm" class="auth-form">
+                <div class="form-group">
+                    <input type="text" id="firstName" placeholder="Имя *" class="form-input" required>
                 </div>
-                <form id="authForm">
-                    <input type="email" id="authEmail" placeholder="Email" required>
-                    <input type="password" id="authPassword" placeholder="Пароль" required>
-                    <div id="registerFields" style="display: none;">
-                        <input type="text" id="authName" placeholder="Имя пользователя">
-                    </div>
-                    <button type="submit" id="authSubmitBtn" class="btn btn-primary">Войти</button>
-                </form>
-                <div class="auth-divider">или</div>
-                <button id="googleAuthBtn" class="btn btn-google">
-                    <i class="fab fa-google"></i> Продолжить с Google
+                <div class="form-group">
+                    <input type="text" id="lastName" placeholder="Фамилия *" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <input type="password" id="authPassword" placeholder="Пароль *" class="form-input" required>
+                </div>
+                
+                <div id="registerEmailField" class="form-group" style="display: none;">
+                    <input type="email" id="authEmail" placeholder="Email (опционально)" class="form-input">
+                </div>
+                
+                <div class="form-options">
+                    <label class="checkbox-label" id="rememberMeLabel" style="display: none;">
+                        <input type="checkbox" id="rememberMe">
+                        <span>Запомнить меня</span>
+                    </label>
+                </div>
+                
+                <button type="submit" id="authSubmitBtn" class="btn btn-primary btn-block btn-large">
+                    <span id="submitText">Войти</span>
+                    <div class="spinner-small" id="submitSpinner" style="display: none;"></div>
                 </button>
+            </form>
+            
+            <div class="auth-footer">
+                <p class="auth-note">Регистрируясь, вы соглашаетесь с нашими правилами использования</p>
             </div>
         </div>
-    </main>
+    </div>
+
+    <!-- Уведомления -->
+    <div id="notificationContainer"></div>
 
     <!-- Скрипты -->
     <script src="app.js"></script>
