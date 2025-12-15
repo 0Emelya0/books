@@ -9,9 +9,9 @@
     <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
 </head>
 <body>
+    <!-- Фон -->
     <div class="background-overlay"></div>
     
     <!-- Навигация -->
@@ -22,31 +22,31 @@
                 <span>BookShelf</span>
             </div>
             <div class="nav-links">
-                <a href="#home" id="homeLink" class="nav-link active">
+                <a href="#" class="nav-link active" data-page="home">
                     <i class="fas fa-home"></i> Главная
                 </a>
-                <a href="#shelf" id="shelfLink" class="nav-link">
+                <a href="#" class="nav-link" data-page="shelf">
                     <i class="fas fa-books"></i> Моя полка
                 </a>
-                <a href="#clubs" id="clubsLink" class="nav-link">
+                <a href="#" class="nav-link" data-page="clubs">
                     <i class="fas fa-users"></i> Клубы
                 </a>
-                <a href="#friends" id="friendsLink" class="nav-link">
+                <a href="#" class="nav-link" data-page="friends">
                     <i class="fas fa-user-friends"></i> Друзья
                 </a>
             </div>
-            <div class="auth-buttons" id="authButtons">
+            <div class="auth-buttons">
                 <button id="loginBtn" class="btn btn-outline">Войти</button>
                 <button id="registerBtn" class="btn btn-primary">Регистрация</button>
             </div>
-            <div class="user-menu" id="userMenu" style="display: none;">
+            <div class="user-menu" style="display: none;">
                 <div class="user-avatar">
                     <i class="fas fa-user-circle"></i>
                 </div>
                 <span id="userName" class="user-name"></span>
                 <button id="logoutBtn" class="btn btn-outline btn-small">Выйти</button>
             </div>
-            <button class="menu-toggle" id="menuToggle">
+            <button class="menu-toggle">
                 <i class="fas fa-bars"></i>
             </button>
         </div>
@@ -55,9 +55,9 @@
     <!-- Главный контент -->
     <main class="container">
         <!-- Главная страница -->
-        <section id="home" class="page active">
+        <div id="homePage" class="page active">
             <div class="welcome-content">
-                <h1><i class="fas fa-book"></i> Добро пожаловать в BookShelf!</h1>
+                <h1><i class="fas fa-book"></i> BookShelf</h1>
                 <p class="subtitle">Социальная сеть для любителей книг</p>
                 
                 <div class="features">
@@ -87,13 +87,13 @@
                     <button id="startBtn" class="btn btn-primary btn-large">
                         <i class="fas fa-rocket"></i> Начать
                     </button>
-                    <p class="demo-note">Демо: test / test123</p>
+                    <p class="demo-note">Демо: user / user123</p>
                 </div>
             </div>
-        </section>
+        </div>
 
         <!-- Моя полка -->
-        <section id="shelf" class="page" style="display: none;">
+        <div id="shelfPage" class="page">
             <div class="page-header">
                 <h2><i class="fas fa-books"></i> Моя книжная полка</h2>
                 <div class="user-info">
@@ -152,13 +152,13 @@
                 </div>
                 
                 <div class="books-grid" id="booksGrid">
-                    <!-- Книги будут здесь -->
+                    <p class="empty">Пока нет книг. Добавьте первую!</p>
                 </div>
             </div>
-        </section>
+        </div>
 
         <!-- Клубы -->
-        <section id="clubs" class="page" style="display: none;">
+        <div id="clubsPage" class="page">
             <div class="page-header">
                 <h2><i class="fas fa-users"></i> Книжные клубы</h2>
                 <p class="subtitle">Присоединяйтесь к клубам по жанрам</p>
@@ -185,7 +185,7 @@
                 </div>
             </div>
 
-            <div class="clubs-section">
+            <div class="clubs-section card">
                 <h3><i class="fas fa-star"></i> Все клубы</h3>
                 <div class="search-box">
                     <i class="fas fa-search"></i>
@@ -193,20 +193,20 @@
                 </div>
                 
                 <div class="clubs-grid" id="clubsGrid">
-                    <!-- Клубы будут здесь -->
+                    <p class="empty">Пока нет клубов. Создайте первый!</p>
                 </div>
             </div>
 
             <div class="my-clubs card">
                 <h3><i class="fas fa-user-check"></i> Мои клубы</h3>
                 <div id="myClubsList">
-                    <!-- Мои клубы -->
+                    <p class="empty">Вы не состоите в клубах</p>
                 </div>
             </div>
-        </section>
+        </div>
 
         <!-- Друзья -->
-        <section id="friends" class="page" style="display: none;">
+        <div id="friendsPage" class="page">
             <div class="page-header">
                 <h2><i class="fas fa-user-friends"></i> Друзья</h2>
                 <p class="subtitle">Находите друзей по интересам</p>
@@ -221,7 +221,7 @@
                     </button>
                 </div>
                 <div id="searchResults" class="search-results">
-                    <!-- Результаты поиска -->
+                    <p class="empty">Введите никнейм для поиска</p>
                 </div>
             </div>
 
@@ -229,22 +229,22 @@
                 <div class="friends-list card">
                     <h3><i class="fas fa-heart"></i> Мои друзья (<span id="friendsCount">0</span>)</h3>
                     <div id="friendsList">
-                        <!-- Список друзей -->
+                        <p class="empty">Пока нет друзей</p>
                     </div>
                 </div>
 
                 <div class="requests-list card">
                     <h3><i class="fas fa-bell"></i> Заявки в друзья (<span id="requestsCount">0</span>)</h3>
                     <div id="requestsList">
-                        <!-- Заявки -->
+                        <p class="empty">Нет заявок в друзья</p>
                     </div>
                 </div>
             </div>
-        </section>
+        </div>
     </main>
 
     <!-- Модальное окно авторизации -->
-    <div id="authModal" class="modal" style="display: none;">
+    <div id="authModal" class="modal">
         <div class="modal-content">
             <span class="close">&times;</span>
             <h2><i class="fas fa-user"></i> BookShelf</h2>
@@ -257,16 +257,13 @@
             <form id="authForm">
                 <input type="text" id="username" placeholder="Никнейм" required class="input">
                 <input type="password" id="password" placeholder="Пароль" required class="input">
-                <div id="emailField" style="display: none;">
-                    <input type="email" id="email" placeholder="Email (необязательно)" class="input">
-                </div>
                 <button type="submit" class="btn btn-primary btn-block">
                     <span id="submitText">Войти</span>
                 </button>
             </form>
             
             <div class="demo-credentials">
-                <p><strong>Демо аккаунт:</strong> test / test123</p>
+                <p><strong>Демо аккаунт:</strong> user / user123</p>
             </div>
         </div>
     </div>
