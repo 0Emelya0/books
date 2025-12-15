@@ -16,84 +16,10 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
 // ==============================================
-// СОСТОЯНИЕ ПРИЛОЖЕНИЯ
+// ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
 // ==============================================
 let currentUser = null;
 let currentRating = 0;
-let currentBooks = [];
-let currentClubs = [];
-let currentFriends = [];
-let currentRequests = [];
-
-// ==============================================
-// DOM ЭЛЕМЕНТЫ
-// ==============================================
-const elements = {
-    // Навигация
-    homeLink: document.getElementById('homeLink'),
-    shelfLink: document.getElementById('shelfLink'),
-    clubsLink: document.getElementById('clubsLink'),
-    friendsLink: document.getElementById('friendsLink'),
-    
-    // Авторизация
-    authButtons: document.getElementById('authButtons'),
-    userMenu: document.getElementById('userMenu'),
-    userName: document.getElementById('userName'),
-    loginBtn: document.getElementById('loginBtn'),
-    registerBtn: document.getElementById('registerBtn'),
-    logoutBtn: document.getElementById('logoutBtn'),
-    startBtn: document.getElementById('startBtn'),
-    welcomeLoginBtn: document.getElementById('welcomeLoginBtn'),
-    
-    // Модальное окно
-    authModal: document.getElementById('authModal'),
-    closeModal: document.querySelector('.close'),
-    authForm: document.getElementById('authForm'),
-    username: document.getElementById('username'),
-    password: document.getElementById('password'),
-    email: document.getElementById('email'),
-    emailField: document.getElementById('emailField'),
-    submitText: document.getElementById('submitText'),
-    tabBtns: document.querySelectorAll('.tab-btn'),
-    
-    // Книги
-    currentUser: document.getElementById('currentUser'),
-    bookCount: document.getElementById('bookCount'),
-    bookTitle: document.getElementById('bookTitle'),
-    bookAuthor: document.getElementById('bookAuthor'),
-    bookStatus: document.getElementById('bookStatus'),
-    bookGenre: document.getElementById('bookGenre'),
-    bookReview: document.getElementById('bookReview'),
-    addBookBtn: document.getElementById('addBookBtn'),
-    booksGrid: document.getElementById('booksGrid'),
-    readCount: document.getElementById('readCount'),
-    readingCount: document.getElementById('readingCount'),
-    wantCount: document.getElementById('wantCount'),
-    
-    // Клубы
-    clubName: document.getElementById('clubName'),
-    clubGenre: document.getElementById('clubGenre'),
-    clubDescription: document.getElementById('clubDescription'),
-    createClubBtn: document.getElementById('createClubBtn'),
-    clubSearch: document.getElementById('clubSearch'),
-    clubsGrid: document.getElementById('clubsGrid'),
-    myClubsList: document.getElementById('myClubsList'),
-    
-    // Друзья
-    friendSearch: document.getElementById('friendSearch'),
-    searchFriendBtn: document.getElementById('searchFriendBtn'),
-    searchResults: document.getElementById('searchResults'),
-    friendsList: document.getElementById('friendsList'),
-    friendsCount: document.getElementById('friendsCount'),
-    requestsList: document.getElementById('requestsList'),
-    requestsCount: document.getElementById('requestsCount'),
-    
-    // Страницы
-    pages: document.querySelectorAll('.page'),
-    
-    // Звезды рейтинга
-    stars: document.querySelectorAll('.stars i')
-};
 
 // ==============================================
 // УТИЛИТЫ
@@ -103,215 +29,134 @@ function showNotification(message, type = 'info') {
     notification.className = `notification ${type}`;
     notification.textContent = message;
     
-    const container = document.getElementById('notificationArea') || document.body;
-    container.appendChild(notification);
+    const container = document.getElementById('notificationArea');
+    if (container) {
+        container.appendChild(notification);
+    } else {
+        document.body.appendChild(notification);
+    }
     
     setTimeout(() => {
-        notification.remove();
+        notification.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300);
     }, 3000);
 }
 
-function showLoading(show = true) {
-    const loader = document.getElementById('loadingScreen');
-    if (loader) {
-        loader.style.display = show ? 'flex' : 'none';
+// Стили для анимации выхода
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideOut {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateX(100%);
+            opacity: 0;
+        }
     }
-}
+`;
+document.head.appendChild(style);
 
 function switchPage(pageId) {
     // Скрыть все страницы
-    elements.pages.forEach(page => {
-        page.style.display = 'none';
+    document.querySelectorAll('.page').forEach(page => {
         page.classList.remove('active');
     });
     
     // Показать выбранную страницу
-    const page = document.getElementById(pageId);
+    const page = document.getElementById(pageId + 'Page');
     if (page) {
-        page.style.display = 'block';
         page.classList.add('active');
     }
     
-    // Обновить навигацию
+    // Обновить активные ссылки в навигации
     document.querySelectorAll('.nav-link').forEach(link => {
         link.classList.remove('active');
-        if (link.getAttribute('href') === `#${pageId}`) {
+        if (link.dataset.page === pageId) {
             link.classList.add('active');
         }
     });
-}
-
-// ==============================================
-// НАСТРОЙКА СОБЫТИЙ
-// ==============================================
-function setupEventListeners() {
-    console.log('Настройка обработчиков событий...');
     
-    // Навигация
-    elements.homeLink.addEventListener('click', (e) => {
-        e.preventDefault();
-        switchPage('home');
-    });
-    
-    elements.shelfLink.addEventListener('click', (e) => {
-        e.preventDefault();
-        if (!currentUser) {
-            showAuthModal();
-            return;
+    // Загрузить данные для страницы
+    if (currentUser) {
+        if (pageId === 'shelf') {
+            loadBooks();
+        } else if (pageId === 'clubs') {
+            loadClubs();
+            loadMyClubs();
+        } else if (pageId === 'friends') {
+            loadFriends();
+            loadFriendRequests();
         }
-        switchPage('shelf');
-        loadBooks();
-    });
-    
-    elements.clubsLink.addEventListener('click', (e) => {
-        e.preventDefault();
-        if (!currentUser) {
-            showAuthModal();
-            return;
-        }
-        switchPage('clubs');
-        loadClubs();
-        loadMyClubs();
-    });
-    
-    elements.friendsLink.addEventListener('click', (e) => {
-        e.preventDefault();
-        if (!currentUser) {
-            showAuthModal();
-            return;
-        }
-        switchPage('friends');
-        loadFriends();
-        loadFriendRequests();
-    });
-    
-    // Кнопки авторизации
-    elements.loginBtn.addEventListener('click', showAuthModal);
-    elements.registerBtn.addEventListener('click', () => showAuthModal('register'));
-    elements.startBtn.addEventListener('click', showAuthModal);
-    elements.welcomeLoginBtn.addEventListener('click', showAuthModal);
-    elements.logoutBtn.addEventListener('click', logout);
-    
-    // Модальное окно
-    elements.closeModal.addEventListener('click', hideAuthModal);
-    
-    // Вкладки модального окна
-    elements.tabBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const tab = btn.dataset.tab;
-            switchAuthTab(tab);
-        });
-    });
-    
-    // Форма авторизации
-    elements.authForm.addEventListener('submit', handleAuth);
-    
-    // Закрытие модального окна по клику вне его
-    window.addEventListener('click', (e) => {
-        if (e.target === elements.authModal) {
-            hideAuthModal();
-        }
-    });
-    
-    // Книги
-    elements.addBookBtn.addEventListener('click', addBook);
-    
-    // Звезды рейтинга
-    elements.stars.forEach(star => {
-        star.addEventListener('click', () => {
-            const value = parseInt(star.dataset.value);
-            setRating(value);
-        });
-    });
-    
-    // Полки
-    document.addEventListener('click', (e) => {
-        if (e.target.classList.contains('tab')) {
-            const status = e.target.dataset.status;
-            filterBooks(status);
-            
-            // Обновить активную вкладку
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            e.target.classList.add('active');
-        }
-    });
-    
-    // Клубы
-    elements.createClubBtn.addEventListener('click', createClub);
-    elements.clubSearch.addEventListener('input', searchClubs);
-    
-    // Друзья
-    elements.searchFriendBtn.addEventListener('click', searchFriends);
-    
-    // Кнопка меню на мобильных
-    const menuToggle = document.getElementById('menuToggle');
-    if (menuToggle) {
-        menuToggle.addEventListener('click', () => {
-            const navLinks = document.querySelector('.nav-links');
-            navLinks.style.display = navLinks.style.display === 'flex' ? 'none' : 'flex';
-        });
     }
-    
-    console.log('Обработчики событий настроены');
 }
 
 // ==============================================
 // АВТОРИЗАЦИЯ
 // ==============================================
 function showAuthModal(tab = 'login') {
-    elements.authModal.style.display = 'flex';
-    switchAuthTab(tab);
+    const modal = document.getElementById('authModal');
+    const submitText = document.getElementById('submitText');
+    
+    if (modal) {
+        modal.style.display = 'flex';
+        
+        // Установить активную вкладку
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.dataset.tab === tab) {
+                btn.classList.add('active');
+            }
+        });
+        
+        if (submitText) {
+            submitText.textContent = tab === 'login' ? 'Войти' : 'Зарегистрироваться';
+        }
+    }
 }
 
 function hideAuthModal() {
-    elements.authModal.style.display = 'none';
-    elements.authForm.reset();
-}
-
-function switchAuthTab(tab) {
-    const isLogin = tab === 'login';
-    
-    // Обновить вкладки
-    elements.tabBtns.forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.tab === tab);
-    });
-    
-    // Обновить форму
-    elements.emailField.style.display = isLogin ? 'none' : 'block';
-    elements.submitText.textContent = isLogin ? 'Войти' : 'Зарегистрироваться';
+    const modal = document.getElementById('authModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
 }
 
 async function handleAuth(e) {
     e.preventDefault();
     
-    const username = elements.username.value.trim();
-    const password = elements.password.value.trim();
-    const email = elements.email.value.trim();
-    const isLogin = document.querySelector('.tab-btn.active').dataset.tab === 'login';
+    const usernameInput = document.getElementById('username');
+    const passwordInput = document.getElementById('password');
+    const activeTab = document.querySelector('.tab-btn.active');
+    
+    if (!usernameInput || !passwordInput || !activeTab) return;
+    
+    const username = usernameInput.value.trim();
+    const password = passwordInput.value.trim();
+    const isLogin = activeTab.dataset.tab === 'login';
     
     if (!username || !password) {
-        showNotification('Заполните все поля', 'error');
+        showNotification('Введите никнейм и пароль', 'error');
         return;
     }
     
-    showLoading(true);
-    
     try {
         if (isLogin) {
-            await login(username, password);
+            await loginUser(username, password);
         } else {
-            await register(username, password, email);
+            await registerUser(username, password);
         }
     } catch (error) {
         showNotification(error.message, 'error');
-    } finally {
-        showLoading(false);
     }
 }
 
-async function login(username, password) {
+async function loginUser(username, password) {
     try {
         // Ищем пользователя в Firestore
         const usersRef = db.collection('users');
@@ -322,7 +167,7 @@ async function login(username, password) {
             .get();
         
         if (snapshot.empty) {
-            throw new Error('Неверный логин или пароль');
+            throw new Error('Неверный никнейм или пароль');
         }
         
         let userData = null;
@@ -334,13 +179,15 @@ async function login(username, password) {
         });
         
         // Сохраняем пользователя
-        currentUser = { id: userId, ...userData };
+        currentUser = {
+            id: userId,
+            ...userData
+        };
         
         // Обновляем интерфейс
         updateUI();
         hideAuthModal();
         switchPage('shelf');
-        loadBooks();
         
         showNotification(`Добро пожаловать, ${username}!`, 'success');
         
@@ -349,7 +196,7 @@ async function login(username, password) {
     }
 }
 
-async function register(username, password, email) {
+async function registerUser(username, password) {
     try {
         // Проверяем, существует ли пользователь
         const usersRef = db.collection('users');
@@ -359,14 +206,13 @@ async function register(username, password, email) {
             .get();
         
         if (!snapshot.empty) {
-            throw new Error('Пользователь уже существует');
+            throw new Error('Пользователь с таким никнеймом уже существует');
         }
         
         // Создаем нового пользователя
         const userData = {
             username: username,
             password: password,
-            email: email || '',
             createdAt: new Date().toISOString(),
             books: [],
             friends: [],
@@ -378,7 +224,10 @@ async function register(username, password, email) {
         const docRef = await usersRef.add(userData);
         
         // Сохраняем пользователя
-        currentUser = { id: docRef.id, ...userData };
+        currentUser = {
+            id: docRef.id,
+            ...userData
+        };
         
         // Обновляем интерфейс
         updateUI();
@@ -394,14 +243,10 @@ async function register(username, password, email) {
 
 function logout() {
     currentUser = null;
-    currentBooks = [];
-    currentClubs = [];
-    currentFriends = [];
-    currentRequests = [];
     
     // Обновляем интерфейс
-    elements.authButtons.style.display = 'flex';
-    elements.userMenu.style.display = 'none';
+    document.querySelector('.auth-buttons').style.display = 'flex';
+    document.querySelector('.user-menu').style.display = 'none';
     
     switchPage('home');
     
@@ -409,12 +254,21 @@ function logout() {
 }
 
 function updateUI() {
+    const authButtons = document.querySelector('.auth-buttons');
+    const userMenu = document.querySelector('.user-menu');
+    const userName = document.getElementById('userName');
+    const currentUserSpan = document.getElementById('currentUser');
+    
     if (currentUser) {
-        elements.authButtons.style.display = 'none';
-        elements.userMenu.style.display = 'flex';
-        elements.userName.textContent = currentUser.username;
-        if (elements.currentUser) {
-            elements.currentUser.textContent = currentUser.username;
+        authButtons.style.display = 'none';
+        userMenu.style.display = 'flex';
+        
+        if (userName) {
+            userName.textContent = currentUser.username;
+        }
+        
+        if (currentUserSpan) {
+            currentUserSpan.textContent = currentUser.username;
         }
     }
 }
@@ -422,11 +276,22 @@ function updateUI() {
 // ==============================================
 // КНИГИ
 // ==============================================
+function setupRatingStars() {
+    const stars = document.querySelectorAll('.stars i');
+    stars.forEach(star => {
+        star.addEventListener('click', function() {
+            const value = parseInt(this.dataset.value);
+            setRating(value);
+        });
+    });
+}
+
 function setRating(rating) {
     currentRating = rating;
     
     // Обновляем звезды
-    elements.stars.forEach((star, index) => {
+    const stars = document.querySelectorAll('.stars i');
+    stars.forEach((star, index) => {
         if (index < rating) {
             star.classList.remove('far');
             star.classList.add('fas');
@@ -449,19 +314,17 @@ async function addBook() {
         return;
     }
     
-    const title = elements.bookTitle.value.trim();
-    const author = elements.bookAuthor.value.trim();
-    const status = elements.bookStatus.value;
-    const genre = elements.bookGenre.value;
-    const review = elements.bookReview.value.trim();
+    const title = document.getElementById('bookTitle').value.trim();
+    const author = document.getElementById('bookAuthor').value.trim();
+    const status = document.getElementById('bookStatus').value;
+    const genre = document.getElementById('bookGenre').value;
+    const review = document.getElementById('bookReview').value.trim();
     const rating = currentRating;
     
     if (!title || !author) {
-        showNotification('Заполните название и автора', 'error');
+        showNotification('Введите название и автора', 'error');
         return;
     }
-    
-    showLoading(true);
     
     try {
         const bookData = {
@@ -485,32 +348,24 @@ async function addBook() {
             books: firebase.firestore.FieldValue.arrayUnion(docRef.id)
         });
         
-        // Обновляем локальные данные
-        currentBooks.push(bookData);
-        
         // Очищаем форму
-        elements.bookTitle.value = '';
-        elements.bookAuthor.value = '';
-        elements.bookReview.value = '';
+        document.getElementById('bookTitle').value = '';
+        document.getElementById('bookAuthor').value = '';
+        document.getElementById('bookReview').value = '';
         setRating(0);
         
         // Обновляем отображение
-        updateBooksDisplay();
-        updateBookCounts();
+        await loadBooks();
         
         showNotification('Книга добавлена!', 'success');
         
     } catch (error) {
         showNotification('Ошибка: ' + error.message, 'error');
-    } finally {
-        showLoading(false);
     }
 }
 
 async function loadBooks() {
     if (!currentUser) return;
-    
-    showLoading(true);
     
     try {
         // Получаем книги пользователя
@@ -520,27 +375,24 @@ async function loadBooks() {
             .orderBy('createdAt', 'desc')
             .get();
         
-        currentBooks = [];
+        const books = [];
         snapshot.forEach(doc => {
-            currentBooks.push({ id: doc.id, ...doc.data() });
+            books.push({ id: doc.id, ...doc.data() });
         });
         
-        // Обновляем отображение
-        updateBooksDisplay();
-        updateBookCounts();
+        updateBooksDisplay(books);
+        updateBookCounts(books);
         
     } catch (error) {
-        showNotification('Ошибка загрузки книг', 'error');
-    } finally {
-        showLoading(false);
+        console.error('Ошибка загрузки книг:', error);
     }
 }
 
-function updateBooksDisplay() {
-    const booksGrid = elements.booksGrid;
+function updateBooksDisplay(books) {
+    const booksGrid = document.getElementById('booksGrid');
     if (!booksGrid) return;
     
-    if (currentBooks.length === 0) {
+    if (books.length === 0) {
         booksGrid.innerHTML = '<p class="empty">Пока нет книг. Добавьте первую!</p>';
         return;
     }
@@ -548,7 +400,7 @@ function updateBooksDisplay() {
     // Фильтруем по активной вкладке
     const activeTab = document.querySelector('.tab.active');
     const status = activeTab ? activeTab.dataset.status : 'read';
-    const filteredBooks = currentBooks.filter(book => book.status === status);
+    const filteredBooks = books.filter(book => book.status === status);
     
     if (filteredBooks.length === 0) {
         booksGrid.innerHTML = `<p class="empty">На этой полке пока нет книг</p>`;
@@ -569,22 +421,21 @@ function updateBooksDisplay() {
     `).join('');
 }
 
-function filterBooks(status) {
-    updateBooksDisplay();
-}
-
-function updateBookCounts() {
-    if (!currentUser) return;
+function updateBookCounts(books) {
+    const total = books.length;
+    const read = books.filter(b => b.status === 'read').length;
+    const reading = books.filter(b => b.status === 'reading').length;
+    const want = books.filter(b => b.status === 'want').length;
     
-    const total = currentBooks.length;
-    const read = currentBooks.filter(b => b.status === 'read').length;
-    const reading = currentBooks.filter(b => b.status === 'reading').length;
-    const want = currentBooks.filter(b => b.status === 'want').length;
+    const bookCount = document.getElementById('bookCount');
+    const readCount = document.getElementById('readCount');
+    const readingCount = document.getElementById('readingCount');
+    const wantCount = document.getElementById('wantCount');
     
-    if (elements.bookCount) elements.bookCount.textContent = `${total} книг`;
-    if (elements.readCount) elements.readCount.textContent = read;
-    if (elements.readingCount) elements.readingCount.textContent = reading;
-    if (elements.wantCount) elements.wantCount.textContent = want;
+    if (bookCount) bookCount.textContent = `${total} книг`;
+    if (readCount) readCount.textContent = read;
+    if (readingCount) readingCount.textContent = reading;
+    if (wantCount) wantCount.textContent = want;
 }
 
 // ==============================================
@@ -596,16 +447,14 @@ async function createClub() {
         return;
     }
     
-    const name = elements.clubName.value.trim();
-    const genre = elements.clubGenre.value;
-    const description = elements.clubDescription.value.trim();
+    const name = document.getElementById('clubName').value.trim();
+    const genre = document.getElementById('clubGenre').value;
+    const description = document.getElementById('clubDescription').value.trim();
     
     if (!name || !description) {
         showNotification('Заполните название и описание', 'error');
         return;
     }
-    
-    showLoading(true);
     
     try {
         const clubData = {
@@ -621,7 +470,6 @@ async function createClub() {
         
         // Добавляем клуб в Firestore
         const docRef = await db.collection('clubs').add(clubData);
-        clubData.id = docRef.id;
         
         // Добавляем клуб пользователю
         await db.collection('users').doc(currentUser.id).update({
@@ -629,8 +477,8 @@ async function createClub() {
         });
         
         // Очищаем форму
-        elements.clubName.value = '';
-        elements.clubDescription.value = '';
+        document.getElementById('clubName').value = '';
+        document.getElementById('clubDescription').value = '';
         
         // Обновляем отображение
         await loadClubs();
@@ -640,29 +488,23 @@ async function createClub() {
         
     } catch (error) {
         showNotification('Ошибка: ' + error.message, 'error');
-    } finally {
-        showLoading(false);
     }
 }
 
 async function loadClubs() {
-    showLoading(true);
-    
     try {
         const clubsRef = db.collection('clubs');
         const snapshot = await clubsRef.orderBy('createdAt', 'desc').get();
         
-        currentClubs = [];
+        const clubs = [];
         snapshot.forEach(doc => {
-            currentClubs.push({ id: doc.id, ...doc.data() });
+            clubs.push({ id: doc.id, ...doc.data() });
         });
         
-        updateClubsDisplay(currentClubs);
+        updateClubsDisplay(clubs);
         
     } catch (error) {
-        showNotification('Ошибка загрузки клубов', 'error');
-    } finally {
-        showLoading(false);
+        console.error('Ошибка загрузки клубов:', error);
     }
 }
 
@@ -690,7 +532,7 @@ async function loadMyClubs() {
 }
 
 function updateClubsDisplay(clubs) {
-    const clubsGrid = elements.clubsGrid;
+    const clubsGrid = document.getElementById('clubsGrid');
     if (!clubsGrid) return;
     
     if (clubs.length === 0) {
@@ -728,7 +570,7 @@ function updateClubsDisplay(clubs) {
 }
 
 function updateMyClubsDisplay(clubs) {
-    const myClubsList = elements.myClubsList;
+    const myClubsList = document.getElementById('myClubsList');
     if (!myClubsList) return;
     
     if (clubs.length === 0) {
@@ -748,30 +590,11 @@ function updateMyClubsDisplay(clubs) {
     `).join('');
 }
 
-function searchClubs() {
-    const searchTerm = elements.clubSearch.value.toLowerCase();
-    
-    if (!searchTerm) {
-        updateClubsDisplay(currentClubs);
-        return;
-    }
-    
-    const filtered = currentClubs.filter(club => 
-        club.name.toLowerCase().includes(searchTerm) ||
-        club.description.toLowerCase().includes(searchTerm) ||
-        club.genre.toLowerCase().includes(searchTerm)
-    );
-    
-    updateClubsDisplay(filtered);
-}
-
 async function joinClub(clubId) {
     if (!currentUser) {
         showNotification('Войдите в систему', 'error');
         return;
     }
-    
-    showLoading(true);
     
     try {
         const clubDoc = await db.collection('clubs').doc(clubId).get();
@@ -815,8 +638,6 @@ async function joinClub(clubId) {
         
     } catch (error) {
         showNotification('Ошибка: ' + error.message, 'error');
-    } finally {
-        showLoading(false);
     }
 }
 
@@ -824,14 +645,12 @@ async function joinClub(clubId) {
 // ДРУЗЬЯ
 // ==============================================
 async function searchFriends() {
-    const username = elements.friendSearch.value.trim();
+    const username = document.getElementById('friendSearch').value.trim();
     
     if (!username) {
         showNotification('Введите никнейм', 'error');
         return;
     }
-    
-    showLoading(true);
     
     try {
         const usersRef = db.collection('users');
@@ -852,13 +671,11 @@ async function searchFriends() {
         
     } catch (error) {
         showNotification('Ошибка поиска', 'error');
-    } finally {
-        showLoading(false);
     }
 }
 
 function displaySearchResults(users) {
-    const searchResults = elements.searchResults;
+    const searchResults = document.getElementById('searchResults');
     if (!searchResults) return;
     
     if (users.length === 0) {
@@ -867,9 +684,6 @@ function displaySearchResults(users) {
     }
     
     searchResults.innerHTML = users.map(user => {
-        const isFriend = currentFriends.some(f => f.id === user.id);
-        const hasRequest = currentRequests.some(r => r.senderId === user.id || r.receiverId === user.id);
-        
         return `
             <div class="friend-item">
                 <div class="friend-info">
@@ -878,18 +692,12 @@ function displaySearchResults(users) {
                     </div>
                     <div>
                         <h4>${user.username}</h4>
-                        ${user.email ? `<p>${user.email}</p>` : ''}
                     </div>
                 </div>
                 <div class="friend-actions">
-                    ${isFriend ? 
-                        '<span class="badge">Друг</span>' : 
-                        hasRequest ?
-                        '<span class="badge">Запрос отправлен</span>' :
-                        `<button class="btn btn-primary btn-small send-request" data-user-id="${user.id}">
-                            Добавить
-                        </button>`
-                    }
+                    <button class="btn btn-primary btn-small send-request" data-user-id="${user.id}">
+                        Добавить
+                    </button>
                 </div>
             </div>
         `;
@@ -906,8 +714,6 @@ function displaySearchResults(users) {
 
 async function sendFriendRequest(friendId) {
     if (!currentUser) return;
-    
-    showLoading(true);
     
     try {
         const requestData = {
@@ -928,37 +734,29 @@ async function sendFriendRequest(friendId) {
         
     } catch (error) {
         showNotification('Ошибка отправки запроса', 'error');
-    } finally {
-        showLoading(false);
     }
 }
 
 async function loadFriends() {
     if (!currentUser) return;
     
-    showLoading(true);
-    
     try {
-        // Получаем друзей пользователя
         const userDoc = await db.collection('users').doc(currentUser.id).get();
         const userData = userDoc.data();
         const friendIds = userData?.friends || [];
         
-        // Загружаем данные друзей
-        currentFriends = [];
+        const friends = [];
         for (const friendId of friendIds) {
             const friendDoc = await db.collection('users').doc(friendId).get();
             if (friendDoc.exists) {
-                currentFriends.push({ id: friendDoc.id, ...friendDoc.data() });
+                friends.push({ id: friendDoc.id, ...friendDoc.data() });
             }
         }
         
-        updateFriendsDisplay();
+        updateFriendsDisplay(friends);
         
     } catch (error) {
-        showNotification('Ошибка загрузки друзей', 'error');
-    } finally {
-        showLoading(false);
+        console.error('Ошибка загрузки друзей:', error);
     }
 }
 
@@ -972,31 +770,31 @@ async function loadFriendRequests() {
             .where('status', '==', 'pending')
             .get();
         
-        currentRequests = [];
+        const requests = [];
         snapshot.forEach(doc => {
-            currentRequests.push({ id: doc.id, ...doc.data() });
+            requests.push({ id: doc.id, ...doc.data() });
         });
         
-        updateRequestsDisplay();
+        updateRequestsDisplay(requests);
         
     } catch (error) {
         console.error('Ошибка загрузки заявок:', error);
     }
 }
 
-function updateFriendsDisplay() {
-    const friendsList = elements.friendsList;
-    const friendsCount = elements.friendsCount;
+function updateFriendsDisplay(friends) {
+    const friendsList = document.getElementById('friendsList');
+    const friendsCount = document.getElementById('friendsCount');
     
     if (!friendsList) return;
     
-    if (currentFriends.length === 0) {
+    if (friends.length === 0) {
         friendsList.innerHTML = '<p class="empty">Пока нет друзей</p>';
         if (friendsCount) friendsCount.textContent = '0';
         return;
     }
     
-    friendsList.innerHTML = currentFriends.map(friend => `
+    friendsList.innerHTML = friends.map(friend => `
         <div class="friend-item">
             <div class="friend-info">
                 <div class="user-avatar">
@@ -1004,7 +802,6 @@ function updateFriendsDisplay() {
                 </div>
                 <div>
                     <h4>${friend.username}</h4>
-                    ${friend.email ? `<p>${friend.email}</p>` : ''}
                 </div>
             </div>
             <div class="friend-actions">
@@ -1015,7 +812,7 @@ function updateFriendsDisplay() {
         </div>
     `).join('');
     
-    if (friendsCount) friendsCount.textContent = currentFriends.length;
+    if (friendsCount) friendsCount.textContent = friends.length;
     
     // Добавляем обработчики для кнопок удаления
     document.querySelectorAll('.remove-friend').forEach(btn => {
@@ -1026,19 +823,19 @@ function updateFriendsDisplay() {
     });
 }
 
-function updateRequestsDisplay() {
-    const requestsList = elements.requestsList;
-    const requestsCount = elements.requestsCount;
+function updateRequestsDisplay(requests) {
+    const requestsList = document.getElementById('requestsList');
+    const requestsCount = document.getElementById('requestsCount');
     
     if (!requestsList) return;
     
-    if (currentRequests.length === 0) {
+    if (requests.length === 0) {
         requestsList.innerHTML = '<p class="empty">Нет заявок в друзья</p>';
         if (requestsCount) requestsCount.textContent = '0';
         return;
     }
     
-    requestsList.innerHTML = currentRequests.map(request => `
+    requestsList.innerHTML = requests.map(request => `
         <div class="request-item">
             <div class="friend-info">
                 <div class="user-avatar">
@@ -1060,7 +857,7 @@ function updateRequestsDisplay() {
         </div>
     `).join('');
     
-    if (requestsCount) requestsCount.textContent = currentRequests.length;
+    if (requestsCount) requestsCount.textContent = requests.length;
     
     // Добавляем обработчики для кнопок заявок
     document.querySelectorAll('.accept-request, .decline-request').forEach(btn => {
@@ -1073,8 +870,6 @@ function updateRequestsDisplay() {
 }
 
 async function handleFriendRequest(requestId, action) {
-    showLoading(true);
-    
     try {
         const requestDoc = await db.collection('friends').doc(requestId).get();
         const requestData = requestDoc.data();
@@ -1110,15 +905,11 @@ async function handleFriendRequest(requestId, action) {
         
     } catch (error) {
         showNotification('Ошибка обработки заявки', 'error');
-    } finally {
-        showLoading(false);
     }
 }
 
 async function removeFriend(friendId) {
     if (!confirm('Удалить из друзей?')) return;
-    
-    showLoading(true);
     
     try {
         // Удаляем друг у друга из друзей
@@ -1130,19 +921,6 @@ async function removeFriend(friendId) {
             friends: firebase.firestore.FieldValue.arrayRemove(currentUser.id)
         });
         
-        // Находим и удаляем запись о дружбе
-        const friendsRef = db.collection('friends');
-        const snapshot = await friendsRef
-            .where('senderId', 'in', [currentUser.id, friendId])
-            .where('receiverId', 'in', [currentUser.id, friendId])
-            .where('status', '==', 'accepted')
-            .limit(1)
-            .get();
-        
-        snapshot.forEach(async doc => {
-            await db.collection('friends').doc(doc.id).delete();
-        });
-        
         showNotification('Друг удален', 'info');
         
         // Обновляем данные
@@ -1150,55 +928,114 @@ async function removeFriend(friendId) {
         
     } catch (error) {
         showNotification('Ошибка удаления друга', 'error');
-    } finally {
-        showLoading(false);
     }
 }
 
 // ==============================================
-// ИНИЦИАЛИЗАЦИЯ
+// НАСТРОЙКА СОБЫТИЙ
 // ==============================================
-async function init() {
-    console.log('Инициализация приложения...');
+function setupEventListeners() {
+    console.log('Настройка обработчиков событий...');
     
-    // Настраиваем обработчики событий
-    setupEventListeners();
+    // Навигация
+    document.querySelectorAll('.nav-link').forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const page = link.dataset.page;
+            if (page === 'home' || currentUser) {
+                switchPage(page);
+            } else {
+                showAuthModal('login');
+            }
+        });
+    });
     
-    // Проверяем авторизацию
-    const savedUser = localStorage.getItem('currentUser');
-    if (savedUser) {
-        try {
-            currentUser = JSON.parse(savedUser);
-            updateUI();
-            switchPage('shelf');
-            await loadBooks();
-            showNotification('Автоматический вход выполнен', 'info');
-        } catch (error) {
-            localStorage.removeItem('currentUser');
+    // Кнопки авторизации
+    document.getElementById('loginBtn').addEventListener('click', () => showAuthModal('login'));
+    document.getElementById('registerBtn').addEventListener('click', () => showAuthModal('register'));
+    document.getElementById('startBtn').addEventListener('click', () => showAuthModal('login'));
+    document.getElementById('logoutBtn').addEventListener('click', logout);
+    
+    // Модальное окно
+    document.querySelector('.close').addEventListener('click', hideAuthModal);
+    document.getElementById('authForm').addEventListener('submit', handleAuth);
+    
+    // Закрытие модального окна по клику вне его
+    window.addEventListener('click', (e) => {
+        const modal = document.getElementById('authModal');
+        if (e.target === modal) {
+            hideAuthModal();
         }
-    }
+    });
     
-    // Инициализируем демо-данные если нужно
-    await initDemoData();
+    // Вкладки в модальном окне
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const tab = this.dataset.tab;
+            
+            // Обновить активную вкладку
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Обновить текст кнопки
+            const submitText = document.getElementById('submitText');
+            if (submitText) {
+                submitText.textContent = tab === 'login' ? 'Войти' : 'Зарегистрироваться';
+            }
+        });
+    });
     
-    console.log('Приложение готово!');
+    // Книги
+    document.getElementById('addBookBtn').addEventListener('click', addBook);
+    
+    // Звезды рейтинга
+    setupRatingStars();
+    
+    // Вкладки полок
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            const status = this.dataset.status;
+            
+            // Обновить активную вкладку
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Загрузить книги для этой полки
+            if (currentUser) {
+                loadBooks();
+            }
+        });
+    });
+    
+    // Клубы
+    document.getElementById('createClubBtn').addEventListener('click', createClub);
+    
+    // Друзья
+    document.getElementById('searchFriendBtn').addEventListener('click', searchFriends);
+    
+    // Мобильное меню
+    document.querySelector('.menu-toggle').addEventListener('click', function() {
+        const navLinks = document.querySelector('.nav-links');
+        navLinks.classList.toggle('active');
+    });
+    
+    console.log('Обработчики событий настроены');
 }
 
 // ==============================================
-// ДЕМО-ДАННЫЕ
+// ИНИЦИАЛИЗАЦИЯ ДЕМО-ДАННЫХ
 // ==============================================
 async function initDemoData() {
     try {
         // Проверяем, есть ли демо-пользователь
         const usersRef = db.collection('users');
-        const snapshot = await usersRef.where('username', '==', 'test').limit(1).get();
+        const snapshot = await usersRef.where('username', '==', 'user').limit(1).get();
         
         if (snapshot.empty) {
             // Создаем демо-пользователя
             const demoUser = {
-                username: 'test',
-                password: 'test123',
-                email: 'demo@example.com',
+                username: 'user',
+                password: 'user123',
                 createdAt: new Date().toISOString(),
                 books: [],
                 friends: [],
@@ -1210,48 +1047,28 @@ async function initDemoData() {
             console.log('Демо-пользователь создан');
         }
         
-        // Проверяем, есть ли демо-клубы
-        const clubsRef = db.collection('clubs');
-        const clubsSnapshot = await clubsRef.limit(1).get();
-        
-        if (clubsSnapshot.empty) {
-            // Создаем демо-клубы
-            const demoClubs = [
-                {
-                    name: 'Фэнтези-мир',
-                    genre: 'fantasy',
-                    description: 'Клуб для любителей фэнтези литературы',
-                    ownerId: 'demo',
-                    ownerName: 'Администратор',
-                    members: ['demo'],
-                    membersCount: 1,
-                    createdAt: new Date().toISOString()
-                },
-                {
-                    name: 'Классика навсегда',
-                    genre: 'classic',
-                    description: 'Обсуждаем классическую литературу',
-                    ownerId: 'demo',
-                    ownerName: 'Администратор',
-                    members: ['demo'],
-                    membersCount: 1,
-                    createdAt: new Date().toISOString()
-                }
-            ];
-            
-            for (const club of demoClubs) {
-                await clubsRef.add(club);
-            }
-            
-            console.log('Демо-клубы созданы');
-        }
-        
     } catch (error) {
         console.error('Ошибка инициализации демо-данных:', error);
     }
 }
 
 // ==============================================
-// ЗАПУСК
+// ЗАПУСК ПРИЛОЖЕНИЯ
 // ==============================================
+async function init() {
+    console.log('Запуск приложения...');
+    
+    // Инициализируем демо-данные
+    await initDemoData();
+    
+    // Настраиваем обработчики событий
+    setupEventListeners();
+    
+    // Настраиваем рейтинг
+    setupRatingStars();
+    
+    console.log('Приложение запущено!');
+}
+
+// Запускаем приложение
 document.addEventListener('DOMContentLoaded', init);
