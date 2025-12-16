@@ -27,14 +27,18 @@ const db = firebase.firestore();
 let currentUser = null;
 let currentRating = 0;
 let userBooks = [];
-let allUsers = []; // Все пользователи для поиска
-let friends = []; // Текущие друзья
-let friendRequests = []; // Запросы в друзья
+let allUsers = [];
+let friends = [];
+let friendRequests = [];
 
 // ==============================================
 // УТИЛИТЫ
 // ==============================================
 function showNotification(message, type = 'info') {
+    // Удаляем старые уведомления
+    const oldNotifications = document.querySelectorAll('.notification');
+    oldNotifications.forEach(n => n.remove());
+    
     const notification = document.createElement('div');
     notification.className = `notification ${type}`;
     notification.textContent = message;
@@ -56,29 +60,71 @@ function showNotification(message, type = 'info') {
     
     setTimeout(() => {
         notification.style.animation = 'slideOut 0.3s ease-out';
-        setTimeout(() => notification.remove(), 300);
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300);
     }, 3000);
 }
 
 // Стили для анимации
-const style = document.createElement('style');
-style.textContent = `
-    @keyframes slideIn {
-        from { transform: translateX(100%); opacity: 0; }
-        to { transform: translateX(0); opacity: 1; }
+if (!document.querySelector('#notification-styles')) {
+    const style = document.createElement('style');
+    style.id = 'notification-styles';
+    style.textContent = `
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+// Сохранение и восстановление состояния
+function saveSession() {
+    if (currentUser) {
+        const sessionData = {
+            userId: currentUser.id,
+            username: currentUser.username,
+            timestamp: Date.now()
+        };
+        localStorage.setItem('bookShelfSession', JSON.stringify(sessionData));
+        console.log("💾 Сессия сохранена");
     }
-    @keyframes slideOut {
-        from { transform: translateX(0); opacity: 1; }
-        to { transform: translateX(100%); opacity: 0; }
+}
+
+function restoreSession() {
+    const sessionData = localStorage.getItem('bookShelfSession');
+    if (sessionData) {
+        try {
+            const data = JSON.parse(sessionData);
+            // Проверяем, не устарела ли сессия (24 часа)
+            if (Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
+                console.log("🔄 Восстановление сессии для:", data.username);
+                return data;
+            } else {
+                localStorage.removeItem('bookShelfSession');
+                console.log("⌛ Сессия устарела");
+            }
+        } catch (error) {
+            console.error("❌ Ошибка восстановления сессии:", error);
+            localStorage.removeItem('bookShelfSession');
+        }
     }
-`;
-document.head.appendChild(style);
+    return null;
+}
 
 function switchPage(pageId) {
     console.log(`📄 Переход на: ${pageId}`);
     
     // Скрыть все страницы
-    document.querySelectorAll('.page').forEach(page => {
+    const pages = document.querySelectorAll('.page');
+    pages.forEach(page => {
         page.classList.remove('active');
         page.style.display = 'none';
     });
@@ -87,7 +133,9 @@ function switchPage(pageId) {
     const page = document.getElementById(pageId + 'Page');
     if (page) {
         page.style.display = 'block';
-        page.classList.add('active');
+        setTimeout(() => {
+            page.classList.add('active');
+        }, 10);
         document.body.className = `${pageId}-page`;
     }
     
@@ -110,7 +158,7 @@ function switchPage(pageId) {
                 loadMyClubs();
                 break;
             case 'friends':
-                loadAllUsers(); // Загружаем всех пользователей для поиска
+                loadAllUsers();
                 loadFriends();
                 loadFriendRequests();
                 break;
@@ -119,7 +167,7 @@ function switchPage(pageId) {
 }
 
 // ==============================================
-// АВТОРИЗАЦИЯ
+// АВТОРИЗАЦИЯ (С СОХРАНЕНИЕМ СЕССИИ)
 // ==============================================
 function showAuthModal(tab = 'login') {
     const modal = document.getElementById('authModal');
@@ -128,7 +176,6 @@ function showAuthModal(tab = 'login') {
     if (modal) {
         modal.style.display = 'flex';
         
-        // Установить активную вкладку
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.classList.remove('active');
             if (btn.dataset.tab === tab) {
@@ -176,6 +223,8 @@ async function handleAuth(e) {
 
 async function loginUser(username, password) {
     try {
+        console.log(`🔐 Попытка входа: ${username}`);
+        
         const usersRef = db.collection('users');
         const snapshot = await usersRef
             .where('username', '==', username)
@@ -195,8 +244,23 @@ async function loginUser(username, password) {
             userId = doc.id;
         });
         
-        currentUser = { id: userId, ...userData };
+        // Получаем полные данные пользователя (книги, друзья и т.д.)
+        const fullUserData = await getUserFullData(userId);
         
+        currentUser = {
+            id: userId,
+            username: userData.username,
+            password: userData.password,
+            createdAt: userData.createdAt,
+            ...fullUserData
+        };
+        
+        console.log("👤 Пользователь загружен:", currentUser);
+        
+        // Сохраняем сессию
+        saveSession();
+        
+        // Обновляем интерфейс
         updateUI();
         hideAuthModal();
         switchPage('shelf');
@@ -208,9 +272,67 @@ async function loginUser(username, password) {
     }
 }
 
+async function getUserFullData(userId) {
+    try {
+        const userDoc = await db.collection('users').doc(userId).get();
+        const userData = userDoc.data();
+        
+        // Получаем книги пользователя
+        const booksSnapshot = await db.collection('books')
+            .where('userId', '==', userId)
+            .orderBy('createdAt', 'desc')
+            .get();
+        
+        const books = [];
+        booksSnapshot.forEach(doc => {
+            books.push({ id: doc.id, ...doc.data() });
+        });
+        
+        // Получаем друзей
+        const friends = userData.friends || [];
+        const friendDetails = [];
+        for (const friendId of friends) {
+            const friendDoc = await db.collection('users').doc(friendId).get();
+            if (friendDoc.exists) {
+                friendDetails.push({ id: friendDoc.id, ...friendDoc.data() });
+            }
+        }
+        
+        // Получаем запросы в друзья
+        const requestsSnapshot = await db.collection('friends')
+            .where('receiverId', '==', userId)
+            .where('status', '==', 'pending')
+            .get();
+        
+        const friendRequests = [];
+        requestsSnapshot.forEach(doc => {
+            friendRequests.push({ id: doc.id, ...doc.data() });
+        });
+        
+        return {
+            books: books,
+            friends: friends,
+            friendDetails: friendDetails,
+            clubs: userData.clubs || [],
+            friendRequests: friendRequests
+        };
+        
+    } catch (error) {
+        console.error("Ошибка загрузки данных пользователя:", error);
+        return {
+            books: [],
+            friends: [],
+            friendDetails: [],
+            clubs: [],
+            friendRequests: []
+        };
+    }
+}
+
 async function registerUser(username, password) {
     try {
-        // Проверяем существование пользователя
+        console.log(`📝 Регистрация нового пользователя: ${username}`);
+        
         const usersRef = db.collection('users');
         const snapshot = await usersRef
             .where('username', '==', username)
@@ -221,7 +343,6 @@ async function registerUser(username, password) {
             throw new Error('Пользователь уже существует');
         }
         
-        // Создаем нового пользователя
         const userData = {
             username: username,
             password: password,
@@ -233,7 +354,13 @@ async function registerUser(username, password) {
         };
         
         const docRef = await usersRef.add(userData);
-        currentUser = { id: docRef.id, ...userData };
+        currentUser = {
+            id: docRef.id,
+            ...userData
+        };
+        
+        // Сохраняем сессию
+        saveSession();
         
         updateUI();
         hideAuthModal();
@@ -247,11 +374,16 @@ async function registerUser(username, password) {
 }
 
 function logout() {
+    console.log("🚪 Выход из системы");
+    
     currentUser = null;
     userBooks = [];
     friends = [];
     friendRequests = [];
     allUsers = [];
+    
+    // Удаляем сессию
+    localStorage.removeItem('bookShelfSession');
     
     document.querySelector('.auth-buttons').style.display = 'flex';
     document.querySelector('.user-menu').style.display = 'none';
@@ -276,7 +408,7 @@ function updateUI() {
 }
 
 // ==============================================
-// КНИГИ
+// КНИГИ (С ПОЛНОЙ ЗАГРУЗКОЙ ПРИ ОБНОВЛЕНИИ)
 // ==============================================
 function setupRatingStars() {
     const stars = document.querySelectorAll('.stars i');
@@ -323,6 +455,11 @@ async function addBook() {
         return;
     }
     
+    if (!genre) {
+        showNotification('Выберите жанр', 'error');
+        return;
+    }
+    
     try {
         const bookData = {
             title: title,
@@ -333,19 +470,26 @@ async function addBook() {
             rating: rating,
             userId: currentUser.id,
             username: currentUser.username,
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
         };
         
+        console.log("📚 Добавление книги:", bookData);
+        
+        // Добавляем книгу в Firestore
         const docRef = await db.collection('books').add(bookData);
-        bookData.id = docRef.id;
+        const bookId = docRef.id;
         
         // Добавляем ID книги пользователю
         await db.collection('users').doc(currentUser.id).update({
-            books: firebase.firestore.FieldValue.arrayUnion(docRef.id)
+            books: firebase.firestore.FieldValue.arrayUnion(bookId)
         });
         
-        // Добавляем в локальный массив
-        userBooks.push(bookData);
+        // Добавляем книгу в локальный массив
+        userBooks.push({
+            id: bookId,
+            ...bookData
+        });
         
         // Очищаем форму
         document.getElementById('bookTitle').value = '';
@@ -357,76 +501,133 @@ async function addBook() {
         updateBooksDisplay();
         updateBookCounts();
         
-        showNotification('Книга добавлена!', 'success');
+        // Сохраняем изменения
+        saveSession();
+        
+        showNotification('Книга добавлена на полку!', 'success');
         
     } catch (error) {
+        console.error('Ошибка добавления книги:', error);
         showNotification('Ошибка: ' + error.message, 'error');
     }
 }
 
 async function loadBooks() {
-    if (!currentUser) return;
+    console.log("📖 Загрузка книг пользователя...");
+    
+    if (!currentUser) {
+        console.log("❌ Нет текущего пользователя");
+        return;
+    }
     
     try {
-        const booksRef = db.collection('books');
-        const snapshot = await booksRef
-            .where('userId', '==', currentUser.id)
-            .orderBy('createdAt', 'desc')
-            .get();
+        // Используем уже загруженные книги или загружаем заново
+        if (currentUser.books && currentUser.books.length > 0) {
+            userBooks = currentUser.books;
+            console.log(`📚 Используем ${userBooks.length} книг из данных пользователя`);
+        } else {
+            // Загружаем книги из Firestore
+            const booksRef = db.collection('books');
+            const snapshot = await booksRef
+                .where('userId', '==', currentUser.id)
+                .orderBy('createdAt', 'desc')
+                .get();
+            
+            userBooks = [];
+            snapshot.forEach(doc => {
+                const bookData = doc.data();
+                userBooks.push({
+                    id: doc.id,
+                    ...bookData,
+                    // Преобразуем даты из строк в объекты Date
+                    createdAt: new Date(bookData.createdAt),
+                    updatedAt: new Date(bookData.updatedAt || bookData.createdAt)
+                });
+            });
+            
+            console.log(`📚 Загружено ${userBooks.length} книг из Firestore`);
+            
+            // Обновляем данные пользователя
+            currentUser.books = userBooks;
+            saveSession();
+        }
         
-        userBooks = [];
-        snapshot.forEach(doc => {
-            userBooks.push({ id: doc.id, ...doc.data() });
-        });
-        
+        // Обновляем отображение
         updateBooksDisplay();
         updateBookCounts();
         
     } catch (error) {
-        console.error('Ошибка загрузки книг:', error);
+        console.error('❌ Ошибка загрузки книг:', error);
+        showNotification('Ошибка загрузки книг', 'error');
     }
 }
 
 function updateBooksDisplay() {
-    const booksGrid = document.getElementById('booksGrid');
-    if (!booksGrid) return;
+    console.log("🔄 Обновление отображения книг...");
     
-    if (userBooks.length === 0) {
+    const booksGrid = document.getElementById('booksGrid');
+    if (!booksGrid) {
+        console.error("❌ Элемент booksGrid не найден!");
+        return;
+    }
+    
+    if (!userBooks || userBooks.length === 0) {
+        console.log("📭 Нет книг для отображения");
         booksGrid.innerHTML = '<p class="empty">Пока нет книг. Добавьте первую!</p>';
         return;
     }
+    
+    console.log(`📚 Отображение ${userBooks.length} книг`);
     
     // Фильтруем по активной вкладке
     const activeTab = document.querySelector('.tab.active');
     const status = activeTab ? activeTab.dataset.status : 'read';
     const filteredBooks = userBooks.filter(book => book.status === status);
     
+    console.log(`📂 Фильтр: ${status}, найдено: ${filteredBooks.length}`);
+    
     if (filteredBooks.length === 0) {
         booksGrid.innerHTML = `<p class="empty">На этой полке пока нет книг</p>`;
         return;
     }
     
-    booksGrid.innerHTML = filteredBooks.map(book => `
-        <div class="book-card">
-            <h4>${book.title}</h4>
-            <p class="book-meta">Автор: ${book.author}</p>
-            <p class="book-meta">Жанр: ${book.genre}</p>
-            <p class="book-meta">Оценка: ${'★'.repeat(book.rating)}${'☆'.repeat(5 - book.rating)}</p>
-            ${book.review ? `<p class="review">"${book.review}"</p>` : ''}
-            <div class="book-actions">
-                <small>Добавлено: ${new Date(book.createdAt).toLocaleDateString()}</small>
+    booksGrid.innerHTML = filteredBooks.map(book => {
+        const date = book.createdAt instanceof Date ? book.createdAt : new Date(book.createdAt);
+        const formattedDate = date.toLocaleDateString('ru-RU', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+        });
+        
+        return `
+            <div class="book-card">
+                <h4>${book.title}</h4>
+                <p class="book-meta"><strong>Автор:</strong> ${book.author}</p>
+                <p class="book-meta"><strong>Жанр:</strong> ${book.genre}</p>
+                <p class="book-meta"><strong>Оценка:</strong> ${'★'.repeat(book.rating)}${'☆'.repeat(5 - book.rating)}</p>
+                ${book.review ? `<p class="review"><strong>Рецензия:</strong> "${book.review}"</p>` : ''}
+                <div class="book-actions">
+                    <small><strong>Добавлено:</strong> ${formattedDate}</small>
+                </div>
             </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
+    
+    console.log("✅ Книги отображены успешно");
 }
 
 function updateBookCounts() {
-    if (!currentUser) return;
+    if (!currentUser || !userBooks || userBooks.length === 0) {
+        console.log("📊 Нет данных для статистики книг");
+        return;
+    }
     
     const total = userBooks.length;
     const read = userBooks.filter(b => b.status === 'read').length;
     const reading = userBooks.filter(b => b.status === 'reading').length;
     const want = userBooks.filter(b => b.status === 'want').length;
+    
+    console.log(`📊 Статистика книг: всего ${total}, прочитано ${read}, читаю ${reading}, хочу ${want}`);
     
     const bookCount = document.getElementById('bookCount');
     const readCount = document.getElementById('readCount');
@@ -628,10 +829,8 @@ async function joinClub(clubId) {
 }
 
 // ==============================================
-// ДРУЗЬЯ (ИСПРАВЛЕННАЯ ВЕРСИЯ)
+// ДРУЗЬЯ
 // ==============================================
-
-// Загрузка всех пользователей для поиска
 async function loadAllUsers() {
     if (!currentUser) return;
     
@@ -642,7 +841,6 @@ async function loadAllUsers() {
         allUsers = [];
         snapshot.forEach(doc => {
             const userData = doc.data();
-            // Исключаем текущего пользователя
             if (doc.id !== currentUser.id) {
                 allUsers.push({
                     id: doc.id,
@@ -651,15 +849,13 @@ async function loadAllUsers() {
             }
         });
         
-        console.log(`Загружено ${allUsers.length} пользователей для поиска`);
+        console.log(`👥 Загружено ${allUsers.length} пользователей для поиска`);
         
     } catch (error) {
         console.error('Ошибка загрузки пользователей:', error);
-        showNotification('Ошибка загрузки пользователей', 'error');
     }
 }
 
-// Поиск друзей по никнейму
 async function searchFriends() {
     const searchInput = document.getElementById('friendSearch');
     if (!searchInput) return;
@@ -671,7 +867,6 @@ async function searchFriends() {
         return;
     }
     
-    // Ищем среди всех загруженных пользователей
     const results = allUsers.filter(user => 
         user.username.toLowerCase().includes(searchTerm)
     );
@@ -679,7 +874,6 @@ async function searchFriends() {
     displaySearchResults(results);
 }
 
-// Отображение результатов поиска
 function displaySearchResults(users) {
     const searchResults = document.getElementById('searchResults');
     if (!searchResults) return;
@@ -690,7 +884,6 @@ function displaySearchResults(users) {
     }
     
     searchResults.innerHTML = users.map(user => {
-        // Проверяем статус отношений
         const isFriend = friends.some(f => f.id === user.id);
         const hasPendingRequest = friendRequests.some(r => 
             (r.senderId === user.id && r.receiverId === currentUser.id) ||
@@ -733,7 +926,6 @@ function displaySearchResults(users) {
         `;
     }).join('');
     
-    // Добавляем обработчики событий
     document.querySelectorAll('.send-friend-request').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             const userId = e.target.dataset.userId;
@@ -749,7 +941,6 @@ function displaySearchResults(users) {
     });
 }
 
-// Показать профиль пользователя
 async function showUserProfile(userId) {
     try {
         const userDoc = await db.collection('users').doc(userId).get();
@@ -760,7 +951,6 @@ async function showUserProfile(userId) {
         
         const userData = userDoc.data();
         
-        // Создаем модальное окно для профиля
         const profileModal = document.createElement('div');
         profileModal.className = 'modal';
         profileModal.style.display = 'flex';
@@ -815,7 +1005,6 @@ async function showUserProfile(userId) {
         
         document.body.appendChild(profileModal);
         
-        // Закрытие модального окна
         profileModal.querySelector('.close-profile').addEventListener('click', () => {
             profileModal.remove();
         });
@@ -826,7 +1015,6 @@ async function showUserProfile(userId) {
             }
         });
         
-        // Обработчики кнопок в профиле
         const addFriendBtn = profileModal.querySelector('.add-friend-profile');
         const removeFriendBtn = profileModal.querySelector('.remove-friend-profile');
         
@@ -850,12 +1038,10 @@ async function showUserProfile(userId) {
     }
 }
 
-// Отправить запрос в друзья
 async function sendFriendRequest(friendId) {
     if (!currentUser) return;
     
     try {
-        // Проверяем, не отправили ли уже запрос
         const existingRequest = await db.collection('friends')
             .where('senderId', '==', currentUser.id)
             .where('receiverId', '==', friendId)
@@ -880,7 +1066,6 @@ async function sendFriendRequest(friendId) {
         
         showNotification('Запрос в друзья отправлен', 'success');
         
-        // Обновляем отображение
         await loadFriendRequests();
         
     } catch (error) {
@@ -889,53 +1074,70 @@ async function sendFriendRequest(friendId) {
     }
 }
 
-// Загрузка друзей
 async function loadFriends() {
     if (!currentUser) return;
     
     try {
-        const userDoc = await db.collection('users').doc(currentUser.id).get();
-        const userData = userDoc.data();
-        const friendIds = userData?.friends || [];
-        
-        // Загружаем информацию о друзьях
-        friends = [];
-        for (const friendId of friendIds) {
-            const friendDoc = await db.collection('users').doc(friendId).get();
-            if (friendDoc.exists) {
-                friends.push({
-                    id: friendDoc.id,
-                    ...friendDoc.data()
-                });
+        if (currentUser.friendDetails && currentUser.friendDetails.length > 0) {
+            friends = currentUser.friendDetails;
+            console.log(`👥 Используем ${friends.length} друзей из данных пользователя`);
+        } else {
+            const userDoc = await db.collection('users').doc(currentUser.id).get();
+            const userData = userDoc.data();
+            const friendIds = userData?.friends || [];
+            
+            friends = [];
+            for (const friendId of friendIds) {
+                const friendDoc = await db.collection('users').doc(friendId).get();
+                if (friendDoc.exists) {
+                    friends.push({
+                        id: friendDoc.id,
+                        ...friendDoc.data()
+                    });
+                }
             }
+            
+            console.log(`👥 Загружено ${friends.length} друзей из Firestore`);
+            
+            // Обновляем данные пользователя
+            currentUser.friendDetails = friends;
+            saveSession();
         }
         
         updateFriendsDisplay();
         
     } catch (error) {
         console.error('Ошибка загрузки друзей:', error);
-        showNotification('Ошибка загрузки друзей', 'error');
     }
 }
 
-// Загрузка запросов в друзья
 async function loadFriendRequests() {
     if (!currentUser) return;
     
     try {
-        // Входящие запросы
-        const incomingRequests = await db.collection('friends')
-            .where('receiverId', '==', currentUser.id)
-            .where('status', '==', 'pending')
-            .get();
-        
-        friendRequests = [];
-        incomingRequests.forEach(doc => {
-            friendRequests.push({
-                id: doc.id,
-                ...doc.data()
+        if (currentUser.friendRequests && currentUser.friendRequests.length > 0) {
+            friendRequests = currentUser.friendRequests;
+            console.log(`📨 Используем ${friendRequests.length} запросов из данных пользователя`);
+        } else {
+            const requestsSnapshot = await db.collection('friends')
+                .where('receiverId', '==', currentUser.id)
+                .where('status', '==', 'pending')
+                .get();
+            
+            friendRequests = [];
+            requestsSnapshot.forEach(doc => {
+                friendRequests.push({
+                    id: doc.id,
+                    ...doc.data()
+                });
             });
-        });
+            
+            console.log(`📨 Загружено ${friendRequests.length} запросов из Firestore`);
+            
+            // Обновляем данные пользователя
+            currentUser.friendRequests = friendRequests;
+            saveSession();
+        }
         
         updateRequestsDisplay();
         
@@ -944,7 +1146,6 @@ async function loadFriendRequests() {
     }
 }
 
-// Обновление отображения друзей
 function updateFriendsDisplay() {
     const friendsList = document.getElementById('friendsList');
     const friendsCount = document.getElementById('friendsCount');
@@ -982,7 +1183,6 @@ function updateFriendsDisplay() {
     
     if (friendsCount) friendsCount.textContent = friends.length;
     
-    // Обработчики для кнопок
     document.querySelectorAll('.view-friend-profile').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             const userId = e.target.dataset.userId;
@@ -998,7 +1198,6 @@ function updateFriendsDisplay() {
     });
 }
 
-// Обновление отображения запросов
 function updateRequestsDisplay() {
     const requestsList = document.getElementById('requestsList');
     const requestsCount = document.getElementById('requestsCount');
@@ -1036,35 +1235,25 @@ function updateRequestsDisplay() {
     
     if (requestsCount) requestsCount.textContent = friendRequests.length;
     
-    // Обработчики для кнопок запросов
-    document.querySelectorAll('.accept-request').forEach(btn => {
+    document.querySelectorAll('.accept-request, .decline-request').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             const requestId = e.target.dataset.requestId;
-            await handleFriendRequest(requestId, 'accept');
-        });
-    });
-    
-    document.querySelectorAll('.decline-request').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-            const requestId = e.target.dataset.requestId;
-            await handleFriendRequest(requestId, 'decline');
+            const action = e.target.classList.contains('accept-request') ? 'accept' : 'decline';
+            await handleFriendRequest(requestId, action);
         });
     });
 }
 
-// Обработка запроса в друзья
 async function handleFriendRequest(requestId, action) {
     try {
         const requestDoc = await db.collection('friends').doc(requestId).get();
         const requestData = requestDoc.data();
         
         if (action === 'accept') {
-            // Обновляем статус запроса
             await db.collection('friends').doc(requestId).update({
                 status: 'accepted'
             });
             
-            // Добавляем друг другу в друзья
             await db.collection('users').doc(currentUser.id).update({
                 friends: firebase.firestore.FieldValue.arrayUnion(requestData.senderId)
             });
@@ -1075,7 +1264,6 @@ async function handleFriendRequest(requestId, action) {
             
             showNotification('Заявка принята! Теперь вы друзья.', 'success');
         } else {
-            // Отклоняем запрос
             await db.collection('friends').doc(requestId).update({
                 status: 'declined'
             });
@@ -1087,18 +1275,19 @@ async function handleFriendRequest(requestId, action) {
         await loadFriends();
         await loadFriendRequests();
         
+        // Сохраняем изменения
+        saveSession();
+        
     } catch (error) {
         console.error('Ошибка обработки запроса:', error);
         showNotification('Ошибка обработки заявки', 'error');
     }
 }
 
-// Удалить друга
 async function removeFriend(friendId) {
     if (!confirm('Удалить из друзей?')) return;
     
     try {
-        // Удаляем друг у друга из списков друзей
         await db.collection('users').doc(currentUser.id).update({
             friends: firebase.firestore.FieldValue.arrayRemove(friendId)
         });
@@ -1107,7 +1296,6 @@ async function removeFriend(friendId) {
             friends: firebase.firestore.FieldValue.arrayRemove(currentUser.id)
         });
         
-        // Находим и удаляем запись о дружбе
         const friendsRef = db.collection('friends');
         const snapshot = await friendsRef
             .where('senderId', 'in', [currentUser.id, friendId])
@@ -1122,8 +1310,8 @@ async function removeFriend(friendId) {
         
         showNotification('Друг удален', 'info');
         
-        // Обновляем данные
         await loadFriends();
+        saveSession();
         
     } catch (error) {
         console.error('Ошибка удаления друга:', error);
@@ -1161,14 +1349,12 @@ function setupEventListeners() {
     document.querySelector('.close').addEventListener('click', hideAuthModal);
     document.getElementById('authForm').addEventListener('submit', handleAuth);
     
-    // Закрытие модального окна по клику вне его
     window.addEventListener('click', (e) => {
         if (e.target === document.getElementById('authModal')) {
             hideAuthModal();
         }
     });
     
-    // Вкладки в модальном окне
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const tab = this.dataset.tab;
@@ -1185,10 +1371,8 @@ function setupEventListeners() {
     // Книги
     document.getElementById('addBookBtn').addEventListener('click', addBook);
     
-    // Звезды рейтинга
     setupRatingStars();
     
-    // Вкладки полок
     document.querySelectorAll('.tab').forEach(tab => {
         tab.addEventListener('click', function() {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -1203,7 +1387,6 @@ function setupEventListeners() {
     // Друзья
     document.getElementById('searchFriendBtn').addEventListener('click', searchFriends);
     
-    // Поиск по Enter
     document.getElementById('friendSearch')?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
@@ -1216,6 +1399,11 @@ function setupEventListeners() {
         document.querySelector('.nav-links').classList.toggle('active');
     });
     
+    // Сохраняем сессию при закрытии страницы
+    window.addEventListener('beforeunload', () => {
+        saveSession();
+    });
+    
     console.log("✅ Обработчики событий настроены");
 }
 
@@ -1224,16 +1412,15 @@ function setupEventListeners() {
 // ==============================================
 async function initDemoData() {
     try {
-        // Проверяем, есть ли демо-пользователь
         const usersRef = db.collection('users');
-        const snapshot = await usersRef.where('username', '==', 'user').limit(1).get();
+        const snapshot = await usersRef.where('username', '==', 'demo').limit(1).get();
         
         if (snapshot.empty) {
             console.log("👤 Создаем демо-пользователя...");
             
             const demoUser = {
-                username: 'user',
-                password: 'user123',
+                username: 'demo',
+                password: 'demo123',
                 createdAt: new Date().toISOString(),
                 books: [],
                 friends: [],
@@ -1251,6 +1438,71 @@ async function initDemoData() {
 }
 
 // ==============================================
+// ВОССТАНОВЛЕНИЕ СЕССИИ
+// ==============================================
+async function restoreUserSession(sessionData) {
+    try {
+        console.log("🔄 Восстановление сессии пользователя...");
+        
+        // Получаем данные пользователя из Firestore
+        const usersRef = db.collection('users');
+        const snapshot = await usersRef
+            .where('username', '==', sessionData.username)
+            .limit(1)
+            .get();
+        
+        if (snapshot.empty) {
+            throw new Error('Пользователь не найден');
+        }
+        
+        let userData = null;
+        let userId = null;
+        
+        snapshot.forEach(doc => {
+            userData = doc.data();
+            userId = doc.id;
+        });
+        
+        // Проверяем ID пользователя
+        if (userId !== sessionData.userId) {
+            console.warn("⚠️ ID пользователя не совпадает, используем новый ID");
+        }
+        
+        // Получаем полные данные пользователя
+        const fullUserData = await getUserFullData(userId);
+        
+        currentUser = {
+            id: userId,
+            username: userData.username,
+            password: userData.password,
+            createdAt: userData.createdAt,
+            ...fullUserData
+        };
+        
+        console.log("✅ Сессия восстановлена для:", currentUser.username);
+        
+        // Обновляем интерфейс
+        updateUI();
+        switchPage('shelf');
+        
+        // Загружаем книги из восстановленных данных
+        if (currentUser.books && currentUser.books.length > 0) {
+            userBooks = currentUser.books;
+            console.log(`📚 Восстановлено ${userBooks.length} книг из сессии`);
+            updateBooksDisplay();
+            updateBookCounts();
+        }
+        
+        showNotification('Сессия восстановлена', 'info');
+        
+    } catch (error) {
+        console.error('❌ Ошибка восстановления сессии:', error);
+        localStorage.removeItem('bookShelfSession');
+        showNotification('Ошибка восстановления сессии', 'error');
+    }
+}
+
+// ==============================================
 // ЗАПУСК ПРИЛОЖЕНИЯ
 // ==============================================
 async function init() {
@@ -1258,6 +1510,16 @@ async function init() {
     
     // Инициализируем демо-данные
     await initDemoData();
+    
+    // Проверяем сохраненную сессию
+    const sessionData = restoreSession();
+    if (sessionData) {
+        console.log("🔄 Обнаружена сохраненная сессия");
+        await restoreUserSession(sessionData);
+    } else {
+        console.log("🆕 Нет сохраненной сессии, начинаем с главной страницы");
+        switchPage('home');
+    }
     
     // Настраиваем обработчики событий
     setupEventListeners();
