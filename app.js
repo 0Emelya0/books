@@ -53,42 +53,31 @@ function showNotification(message, type = 'info') {
         position: fixed;
         top: 20px;
         right: 20px;
-        padding: 15px 20px;
-        background: ${type === 'success' ? '#4CAF50' : type === 'error' ? '#F44336' : '#2196F3'};
+        padding: 16px 24px;
+        background: ${type === 'success' ? 'linear-gradient(135deg, #67c23a 0%, #85ce61 100%)' : 
+                   type === 'error' ? 'linear-gradient(135deg, #f56c6c 0%, #f78989 100%)' : 
+                   'linear-gradient(135deg, #8a9eff 0%, #a991f7 100%)'};
         color: white;
-        border-radius: 5px;
-        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        border-radius: 12px;
+        box-shadow: 0 10px 30px rgba(31, 38, 135, 0.2);
         z-index: 3000;
-        animation: slideIn 0.3s ease-out;
+        animation: slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        font-weight: 500;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
     `;
     
     document.body.appendChild(notification);
     
     setTimeout(() => {
-        notification.style.animation = 'slideOut 0.3s ease-out';
+        notification.style.animation = 'slideOut 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
         setTimeout(() => {
             if (notification.parentNode) {
                 notification.parentNode.removeChild(notification);
             }
         }, 300);
     }, 3000);
-}
-
-// Стили для анимации
-if (!document.querySelector('#notification-styles')) {
-    const style = document.createElement('style');
-    style.id = 'notification-styles';
-    style.textContent = `
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-        @keyframes slideOut {
-            from { transform: translateX(0); opacity: 1; }
-            to { transform: translateX(100%); opacity: 0; }
-        }
-    `;
-    document.head.appendChild(style);
 }
 
 // Сохранение и восстановление состояния
@@ -393,10 +382,11 @@ function updateUI() {
         userMenu.style.display = 'flex';
         
         if (userName) userName.textContent = currentUser.username;
-        if (currentUserSpan) currentUserSpan.textContent = currentUser.username;
+        if (currentUserSpan) currentUserSpan.textContent = `Добро пожаловать, ${currentUser.username}!`;
     } else {
         authButtons.style.display = 'flex';
         userMenu.style.display = 'none';
+        if (currentUserSpan) currentUserSpan.textContent = 'Добро пожаловать!';
     }
 }
 
@@ -746,9 +736,9 @@ function updateClubsDisplay(clubs) {
         return `
             <div class="club-card">
                 <h4>${club.name}</h4>
-                <p class="club-meta">Жанр: ${club.genre}</p>
-                <p class="club-meta">Создатель: ${club.ownerName}</p>
-                <p class="club-meta">Участников: ${club.membersCount || 1}</p>
+                <p class="book-meta"><strong>Жанр:</strong> ${club.genre}</p>
+                <p class="book-meta"><strong>Создатель:</strong> ${club.ownerName}</p>
+                <p class="book-meta"><strong>Участников:</strong> ${club.membersCount || 1}</p>
                 <p>${club.description}</p>
                 <div class="club-actions">
                     <button class="btn ${isMember ? 'btn-outline' : 'btn-primary'} btn-small join-club" 
@@ -780,7 +770,7 @@ function updateMyClubsDisplay(clubs) {
     myClubsList.innerHTML = clubs.map(club => `
         <div class="club-card">
             <h4>${club.name}</h4>
-            <p class="club-meta">Жанр: ${club.genre}</p>
+            <p class="book-meta"><strong>Жанр:</strong> ${club.genre}</p>
             <p>${club.description}</p>
             <div class="club-actions">
                 <span class="badge">${club.membersCount || 1} участников</span>
@@ -976,18 +966,20 @@ async function showUserProfile(userId) {
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0,0,0,0.5);
+            background-color: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
             display: flex;
             justify-content: center;
             align-items: center;
-            z-index: 1000;
+            z-index: 2000;
         `;
         
         profileModal.innerHTML = `
             <div class="modal-content" style="
-                background: white;
-                padding: 20px;
-                border-radius: 10px;
+                background: rgba(255, 255, 255, 0.95);
+                padding: 32px;
+                border-radius: 24px;
                 max-width: 500px;
                 width: 90%;
                 max-height: 80vh;
@@ -997,47 +989,60 @@ async function showUserProfile(userId) {
                     float: right;
                     font-size: 24px;
                     cursor: pointer;
+                    color: #8a9eff;
+                    transition: all 0.3s;
+                    width: 40px;
+                    height: 40px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    border-radius: 12px;
+                    background: rgba(138, 158, 255, 0.1);
                 ">&times;</span>
-                <h2><i class="fas fa-user"></i> Профиль пользователя</h2>
+                <h2 style="color: #2c3e50; margin-bottom: 24px; font-size: 28px;">
+                    <i class="fas fa-user" style="background: linear-gradient(135deg, #8a9eff 0%, #a991f7 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;"></i> Профиль пользователя
+                </h2>
                 
-                <div class="profile-header" style="display: flex; align-items: center; margin-bottom: 20px;">
-                    <div class="profile-avatar" style="font-size: 48px; margin-right: 20px;">
+                <div class="profile-header" style="display: flex; align-items: center; gap: 24px; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 2px solid #e8edf5;">
+                    <div class="profile-avatar" style="width: 90px; height: 90px; border-radius: 50%; background: linear-gradient(135deg, #8a9eff 0%, #a991f7 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 3rem; box-shadow: 0 8px 32px rgba(31, 38, 135, 0.12); border: 3px solid white;">
                         <i class="fas fa-user-circle"></i>
                     </div>
                     <div class="profile-info">
-                        <h3>${userData.username}</h3>
-                        <p><i class="fas fa-calendar"></i> В BookShelf с: ${userData.createdAt ? new Date(userData.createdAt).toLocaleDateString() : 'Неизвестно'}</p>
+                        <h3 style="color: #2c3e50; margin-bottom: 8px; font-size: 1.8rem; font-weight: 700;">${userData.username}</h3>
+                        <p style="color: #5a6c8c; display: flex; align-items: center; gap: 10px; font-size: 0.95rem;">
+                            <i class="fas fa-calendar" style="color: #8a9eff;"></i> В BookShelf с: ${userData.createdAt ? new Date(userData.createdAt).toLocaleDateString() : 'Неизвестно'}
+                        </p>
                     </div>
                 </div>
                 
-                <div class="profile-stats" style="display: flex; justify-content: space-around; margin: 20px 0;">
-                    <div class="stat-item" style="text-align: center;">
-                        <i class="fas fa-book" style="font-size: 24px; color: #4CAF50;"></i>
+                <div class="profile-stats" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px;">
+                    <div class="stat-item" style="background: rgba(255, 255, 255, 0.9); padding: 20px; border-radius: 16px; text-align: center; border: 2px solid #e8edf5; transition: all 0.3s;">
+                        <i class="fas fa-book" style="font-size: 2.2rem; color: #8a9eff; margin-bottom: 12px; display: block;"></i>
                         <div>
-                            <h4>${booksCount}</h4>
-                            <p>Книг на полке</p>
+                            <h4 style="font-size: 1.6rem; color: #2c3e50; margin-bottom: 6px; font-weight: 700;">${booksCount}</h4>
+                            <p style="color: #5a6c8c; font-size: 0.9rem; font-weight: 500;">Книг на полке</p>
                         </div>
                     </div>
-                    <div class="stat-item" style="text-align: center;">
-                        <i class="fas fa-users" style="font-size: 24px; color: #2196F3;"></i>
+                    <div class="stat-item" style="background: rgba(255, 255, 255, 0.9); padding: 20px; border-radius: 16px; text-align: center; border: 2px solid #e8edf5; transition: all 0.3s;">
+                        <i class="fas fa-users" style="font-size: 2.2rem; color: #8a9eff; margin-bottom: 12px; display: block;"></i>
                         <div>
-                            <h4>${userData.friends ? userData.friends.length : 0}</h4>
-                            <p>Друзей</p>
+                            <h4 style="font-size: 1.6rem; color: #2c3e50; margin-bottom: 6px; font-weight: 700;">${userData.friends ? userData.friends.length : 0}</h4>
+                            <p style="color: #5a6c8c; font-size: 0.9rem; font-weight: 500;">Друзей</p>
                         </div>
                     </div>
-                    <div class="stat-item" style="text-align: center;">
-                        <i class="fas fa-users" style="font-size: 24px; color: #9C27B0;"></i>
+                    <div class="stat-item" style="background: rgba(255, 255, 255, 0.9); padding: 20px; border-radius: 16px; text-align: center; border: 2px solid #e8edf5; transition: all 0.3s;">
+                        <i class="fas fa-users" style="font-size: 2.2rem; color: #8a9eff; margin-bottom: 12px; display: block;"></i>
                         <div>
-                            <h4>${userData.clubs ? userData.clubs.length : 0}</h4>
-                            <p>Клубов</p>
+                            <h4 style="font-size: 1.6rem; color: #2c3e50; margin-bottom: 6px; font-weight: 700;">${userData.clubs ? userData.clubs.length : 0}</h4>
+                            <p style="color: #5a6c8c; font-size: 0.9rem; font-weight: 500;">Клубов</p>
                         </div>
                     </div>
                 </div>
                 
                 <div class="profile-actions">
                     ${friends.some(f => f.id === userId) ? 
-                        '<button class="btn btn-outline btn-block remove-friend-profile" data-user-id="' + userId + '" style="width: 100%; padding: 10px; margin-top: 10px;">Удалить из друзей</button>' :
-                        '<button class="btn btn-primary btn-block add-friend-profile" data-user-id="' + userId + '" style="width: 100%; padding: 10px; margin-top: 10px;">Добавить в друзья</button>'
+                        '<button class="btn btn-outline btn-block remove-friend-profile" data-user-id="' + userId + '" style="width: 100%; padding: 16px; margin-top: 10px; border-radius: 12px; background: transparent; color: #8a9eff; border: 2px solid #8a9eff; font-weight: 600; cursor: pointer; transition: all 0.3s;">Удалить из друзей</button>' :
+                        '<button class="btn btn-primary btn-block add-friend-profile" data-user-id="' + userId + '" style="width: 100%; padding: 16px; margin-top: 10px; border-radius: 12px; background: linear-gradient(135deg, #8a9eff 0%, #a991f7 100%); color: white; border: none; font-weight: 600; cursor: pointer; transition: all 0.3s;">Добавить в друзья</button>'
                     }
                 </div>
             </div>
