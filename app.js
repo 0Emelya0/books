@@ -1,5 +1,5 @@
 // ==============================================
-// КОНФИГУРАЦИЯ FIREBASE
+// КОНФИГУРАЦИЯ FIREBASE (версия 8)
 // ==============================================
 const firebaseConfig = {
     apiKey: "AIzaSyDvuVQorN5kS02t_gO3PmtFXa8vNJHrVoA",
@@ -11,32 +11,21 @@ const firebaseConfig = {
     measurementId: "G-HRF9YW9C9C"
 };
 
-// Инициализация Firebase
+// Инициализация Firebase (версия 8)
 try {
     // Проверяем, не инициализирован ли Firebase уже
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
+        console.log("✅ Firebase инициализирован");
+    } else {
+        console.log("✅ Firebase уже инициализирован");
     }
-    console.log("✅ Firebase инициализирован");
 } catch (error) {
     console.error("❌ Ошибка Firebase:", error);
 }
 
-// Инициализация Firestore с совместимостью
-let db;
-try {
-    if (firebase.firestore) {
-        db = firebase.firestore();
-        // Включаем поддержку timestamps
-        const settings = { timestampsInSnapshots: true };
-        db.settings(settings);
-        console.log("✅ Firestore инициализирован");
-    } else {
-        console.error("❌ Firestore не доступен");
-    }
-} catch (error) {
-    console.error("❌ Ошибка инициализации Firestore:", error);
-}
+// Инициализация Firestore
+const db = firebase.firestore();
 
 // ==============================================
 // ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
@@ -111,7 +100,7 @@ function saveSession() {
             timestamp: Date.now()
         };
         localStorage.setItem('bookShelfSession', JSON.stringify(sessionData));
-        console.log("💾 Сессия сохранена");
+        console.log("💾 Сессия сохранена:", sessionData.username);
     }
 }
 
@@ -122,7 +111,7 @@ function restoreSession() {
             const data = JSON.parse(sessionData);
             // Проверяем, не устарела ли сессия (24 часа)
             if (Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
-                console.log("🔄 Восстановление сессии для:", data.username);
+                console.log("🔄 Обнаружена сохраненная сессия для:", data.username);
                 return data;
             } else {
                 localStorage.removeItem('bookShelfSession');
@@ -184,7 +173,7 @@ function switchPage(pageId) {
 }
 
 // ==============================================
-// АВТОРИЗАЦИЯ (С СОХРАНЕНИЕМ СЕССИИ)
+// АВТОРИЗАЦИЯ
 // ==============================================
 function showAuthModal(tab = 'login') {
     const modal = document.getElementById('authModal');
@@ -227,11 +216,6 @@ async function handleAuth(e) {
         return;
     }
     
-    if (password.length < 6) {
-        showNotification('Пароль должен быть не менее 6 символов', 'error');
-        return;
-    }
-    
     try {
         if (isLogin) {
             await loginUser(username, password);
@@ -247,19 +231,14 @@ async function loginUser(username, password) {
     try {
         console.log(`🔐 Попытка входа: ${username}`);
         
-        if (!db) {
-            throw new Error('База данных не инициализирована');
-        }
-        
         const usersRef = db.collection('users');
         const snapshot = await usersRef
             .where('username', '==', username)
-            .where('password', '==', password)
             .limit(1)
             .get();
         
         if (snapshot.empty) {
-            throw new Error('Неверный никнейм или пароль');
+            throw new Error('Пользователь не найден');
         }
         
         let userData = null;
@@ -270,14 +249,21 @@ async function loginUser(username, password) {
             userId = doc.id;
         });
         
-        // Получаем полные данные пользователя
-        const fullUserData = await getUserFullData(userId);
+        // Проверяем пароль
+        if (userData.password !== password) {
+            throw new Error('Неверный пароль');
+        }
         
+        // Создаем объект пользователя
         currentUser = {
             id: userId,
             username: userData.username,
-            createdAt: userData.createdAt,
-            ...fullUserData
+            password: userData.password,
+            createdAt: userData.createdAt || new Date(),
+            books: [],
+            friends: [],
+            clubs: [],
+            friendRequests: []
         };
         
         console.log("👤 Пользователь загружен:", currentUser.username);
@@ -288,6 +274,10 @@ async function loginUser(username, password) {
         // Обновляем интерфейс
         updateUI();
         hideAuthModal();
+        
+        // Загружаем данные пользователя
+        await loadUserData();
+        
         switchPage('shelf');
         
         showNotification(`Добро пожаловать, ${username}!`, 'success');
@@ -298,67 +288,26 @@ async function loginUser(username, password) {
     }
 }
 
-async function getUserFullData(userId) {
+async function loadUserData() {
+    if (!currentUser) return;
+    
+    console.log("📊 Загрузка данных пользователя...");
+    
     try {
-        const userDoc = await db.collection('users').doc(userId).get();
-        if (!userDoc.exists) {
-            throw new Error('Пользователь не найден');
-        }
+        // Загружаем книги
+        await loadBooks();
         
-        const userData = userDoc.data();
+        // Загружаем друзей
+        await loadFriends();
         
-        // Получаем книги пользователя
-        const booksSnapshot = await db.collection('books')
-            .where('userId', '==', userId)
-            .get();
+        // Загружаем запросы в друзья
+        await loadFriendRequests();
         
-        const books = [];
-        booksSnapshot.forEach(doc => {
-            const bookData = doc.data();
-            books.push({ 
-                id: doc.id, 
-                ...bookData,
-                createdAt: bookData.createdAt ? bookData.createdAt.toDate() : new Date()
-            });
-        });
-        
-        // Получаем друзей
-        const friends = userData.friends || [];
-        const friendDetails = [];
-        
-        // Получаем запросы в друзья
-        const requestsSnapshot = await db.collection('friends')
-            .where('receiverId', '==', userId)
-            .where('status', '==', 'pending')
-            .get();
-        
-        const friendRequests = [];
-        requestsSnapshot.forEach(doc => {
-            const requestData = doc.data();
-            friendRequests.push({ 
-                id: doc.id, 
-                ...requestData,
-                createdAt: requestData.createdAt ? requestData.createdAt.toDate() : new Date()
-            });
-        });
-        
-        return {
-            books: books,
-            friends: friends,
-            friendDetails: friendDetails,
-            clubs: userData.clubs || [],
-            friendRequests: friendRequests
-        };
+        // Загружаем клубы
+        await loadMyClubs();
         
     } catch (error) {
-        console.error("Ошибка загрузки данных пользователя:", error);
-        return {
-            books: [],
-            friends: [],
-            friendDetails: [],
-            clubs: [],
-            friendRequests: []
-        };
+        console.error('Ошибка загрузки данных пользователя:', error);
     }
 }
 
@@ -366,10 +315,7 @@ async function registerUser(username, password) {
     try {
         console.log(`📝 Регистрация нового пользователя: ${username}`);
         
-        if (!db) {
-            throw new Error('База данных не инициализирована');
-        }
-        
+        // Проверяем существование пользователя
         const usersRef = db.collection('users');
         const snapshot = await usersRef
             .where('username', '==', username)
@@ -380,10 +326,11 @@ async function registerUser(username, password) {
             throw new Error('Пользователь уже существует');
         }
         
+        // Создаем нового пользователя
         const userData = {
             username: username,
             password: password,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            createdAt: new Date().toISOString(),
             books: [],
             friends: [],
             clubs: [],
@@ -391,15 +338,18 @@ async function registerUser(username, password) {
         };
         
         const docRef = await usersRef.add(userData);
+        
         currentUser = {
             id: docRef.id,
-            ...userData,
-            createdAt: new Date()
+            ...userData
         };
+        
+        console.log("✅ Пользователь зарегистрирован:", currentUser.username);
         
         // Сохраняем сессию
         saveSession();
         
+        // Обновляем интерфейс
         updateUI();
         hideAuthModal();
         switchPage('shelf');
@@ -424,11 +374,9 @@ function logout() {
     // Удаляем сессию
     localStorage.removeItem('bookShelfSession');
     
-    const authButtons = document.querySelector('.auth-buttons');
-    const userMenu = document.querySelector('.user-menu');
-    
-    if (authButtons) authButtons.style.display = 'flex';
-    if (userMenu) userMenu.style.display = 'none';
+    // Обновляем интерфейс
+    document.querySelector('.auth-buttons').style.display = 'flex';
+    document.querySelector('.user-menu').style.display = 'none';
     
     switchPage('home');
     showNotification('Вы вышли из системы', 'info');
@@ -441,24 +389,22 @@ function updateUI() {
     const currentUserSpan = document.getElementById('currentUser');
     
     if (currentUser) {
-        if (authButtons) authButtons.style.display = 'none';
-        if (userMenu) userMenu.style.display = 'flex';
+        authButtons.style.display = 'none';
+        userMenu.style.display = 'flex';
         
         if (userName) userName.textContent = currentUser.username;
         if (currentUserSpan) currentUserSpan.textContent = currentUser.username;
+    } else {
+        authButtons.style.display = 'flex';
+        userMenu.style.display = 'none';
     }
 }
 
 // ==============================================
-// КНИГИ (С ПОЛНОЙ ЗАГРУЗКОЙ ПРИ ОБНОВЛЕНИИ)
+// КНИГИ
 // ==============================================
 function setupRatingStars() {
     const stars = document.querySelectorAll('.stars i');
-    if (!stars.length) {
-        console.warn('Звезды рейтинга не найдены');
-        return;
-    }
-    
     stars.forEach(star => {
         star.addEventListener('click', function() {
             const value = parseInt(this.dataset.value);
@@ -508,10 +454,6 @@ async function addBook() {
     }
     
     try {
-        if (!db) {
-            throw new Error('База данных не инициализирована');
-        }
-        
         const bookData = {
             title: title,
             author: author,
@@ -521,8 +463,8 @@ async function addBook() {
             rating: rating,
             userId: currentUser.id,
             username: currentUser.username,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
         };
         
         console.log("📚 Добавление книги:", bookData);
@@ -537,11 +479,9 @@ async function addBook() {
         });
         
         // Добавляем книгу в локальный массив
-        userBooks.push({
+        userBooks.unshift({
             id: bookId,
-            ...bookData,
-            createdAt: new Date(),
-            updatedAt: new Date()
+            ...bookData
         });
         
         // Очищаем форму
@@ -573,16 +513,9 @@ async function loadBooks() {
         return;
     }
     
-    if (!db) {
-        console.error("❌ База данных не инициализирована");
-        showNotification('Ошибка базы данных', 'error');
-        return;
-    }
-    
     try {
         // Загружаем книги из Firestore
-        const booksRef = db.collection('books');
-        const snapshot = await booksRef
+        const snapshot = await db.collection('books')
             .where('userId', '==', currentUser.id)
             .get();
         
@@ -591,21 +524,14 @@ async function loadBooks() {
             const bookData = doc.data();
             userBooks.push({
                 id: doc.id,
-                ...bookData,
-                // Преобразуем timestamp в Date
-                createdAt: bookData.createdAt ? bookData.createdAt.toDate() : new Date(),
-                updatedAt: bookData.updatedAt ? bookData.updatedAt.toDate() : new Date()
+                ...bookData
             });
         });
         
+        // Сортируем по дате (новые сначала)
+        userBooks.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        
         console.log(`📚 Загружено ${userBooks.length} книг из Firestore`);
-        
-        // Сортируем по дате создания (новые первыми)
-        userBooks.sort((a, b) => b.createdAt - a.createdAt);
-        
-        // Обновляем данные пользователя
-        currentUser.books = userBooks;
-        saveSession();
         
         // Обновляем отображение
         updateBooksDisplay();
@@ -651,7 +577,7 @@ function updateBooksDisplay() {
     }
     
     booksGrid.innerHTML = filteredBooks.map(book => {
-        const date = book.createdAt instanceof Date ? book.createdAt : new Date(book.createdAt);
+        const date = book.createdAt ? new Date(book.createdAt) : new Date();
         const formattedDate = date.toLocaleDateString('ru-RU', {
             day: 'numeric',
             month: 'long',
@@ -730,11 +656,6 @@ async function createClub() {
         return;
     }
     
-    if (!db) {
-        showNotification('Ошибка базы данных', 'error');
-        return;
-    }
-    
     try {
         const clubData = {
             name: name,
@@ -744,7 +665,7 @@ async function createClub() {
             ownerName: currentUser.username,
             members: [currentUser.id],
             membersCount: 1,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            createdAt: new Date().toISOString()
         };
         
         await db.collection('clubs').add(clubData);
@@ -764,21 +685,21 @@ async function createClub() {
 }
 
 async function loadClubs() {
-    if (!db) return;
+    if (!currentUser) return;
     
     try {
-        const clubsRef = db.collection('clubs');
-        const snapshot = await clubsRef.orderBy('createdAt', 'desc').get();
+        const snapshot = await db.collection('clubs').get();
         
         const clubs = [];
         snapshot.forEach(doc => {
-            const clubData = doc.data();
             clubs.push({ 
                 id: doc.id, 
-                ...clubData,
-                createdAt: clubData.createdAt ? clubData.createdAt.toDate() : new Date()
+                ...doc.data()
             });
         });
+        
+        // Сортируем по дате создания
+        clubs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         
         updateClubsDisplay(clubs);
         
@@ -788,25 +709,20 @@ async function loadClubs() {
 }
 
 async function loadMyClubs() {
-    if (!currentUser || !db) return;
+    if (!currentUser) return;
     
     try {
-        const userDoc = await db.collection('users').doc(currentUser.id).get();
-        const userData = userDoc.data();
-        const clubIds = userData?.clubs || [];
+        const snapshot = await db.collection('clubs')
+            .where('members', 'array-contains', currentUser.id)
+            .get();
         
         const myClubs = [];
-        for (const clubId of clubIds) {
-            const clubDoc = await db.collection('clubs').doc(clubId).get();
-            if (clubDoc.exists) {
-                const clubData = clubDoc.data();
-                myClubs.push({ 
-                    id: clubDoc.id, 
-                    ...clubData,
-                    createdAt: clubData.createdAt ? clubData.createdAt.toDate() : new Date()
-                });
-            }
-        }
+        snapshot.forEach(doc => {
+            myClubs.push({ 
+                id: doc.id, 
+                ...doc.data()
+            });
+        });
         
         updateMyClubsDisplay(myClubs);
         
@@ -825,14 +741,14 @@ function updateClubsDisplay(clubs) {
     }
     
     clubsGrid.innerHTML = clubs.map(club => {
-        const isMember = club.members && club.members.includes(currentUser?.id);
+        const isMember = club.members && club.members.includes(currentUser.id);
         
         return `
             <div class="club-card">
                 <h4>${club.name}</h4>
                 <p class="club-meta">Жанр: ${club.genre}</p>
                 <p class="club-meta">Создатель: ${club.ownerName}</p>
-                <p class="club-meta">Участников: ${club.membersCount || 0}</p>
+                <p class="club-meta">Участников: ${club.membersCount || 1}</p>
                 <p>${club.description}</p>
                 <div class="club-actions">
                     <button class="btn ${isMember ? 'btn-outline' : 'btn-primary'} btn-small join-club" 
@@ -867,7 +783,7 @@ function updateMyClubsDisplay(clubs) {
             <p class="club-meta">Жанр: ${club.genre}</p>
             <p>${club.description}</p>
             <div class="club-actions">
-                <span class="badge">${club.membersCount || 0} участников</span>
+                <span class="badge">${club.membersCount || 1} участников</span>
             </div>
         </div>
     `).join('');
@@ -876,11 +792,6 @@ function updateMyClubsDisplay(clubs) {
 async function joinClub(clubId) {
     if (!currentUser) {
         showNotification('Войдите в систему', 'error');
-        return;
-    }
-    
-    if (!db) {
-        showNotification('Ошибка базы данных', 'error');
         return;
     }
     
@@ -900,20 +811,12 @@ async function joinClub(clubId) {
                 membersCount: firebase.firestore.FieldValue.increment(-1)
             });
             
-            await db.collection('users').doc(currentUser.id).update({
-                clubs: firebase.firestore.FieldValue.arrayRemove(clubId)
-            });
-            
             showNotification('Вы вышли из клуба', 'info');
         } else {
             // Вступаем в клуб
             await db.collection('clubs').doc(clubId).update({
                 members: firebase.firestore.FieldValue.arrayUnion(currentUser.id),
                 membersCount: firebase.firestore.FieldValue.increment(1)
-            });
-            
-            await db.collection('users').doc(currentUser.id).update({
-                clubs: firebase.firestore.FieldValue.arrayUnion(clubId)
             });
             
             showNotification('Вы присоединились к клубу!', 'success');
@@ -932,11 +835,10 @@ async function joinClub(clubId) {
 // ДРУЗЬЯ
 // ==============================================
 async function loadAllUsers() {
-    if (!currentUser || !db) return;
+    if (!currentUser) return;
     
     try {
-        const usersRef = db.collection('users');
-        const snapshot = await usersRef.get();
+        const snapshot = await db.collection('users').get();
         
         allUsers = [];
         snapshot.forEach(doc => {
@@ -944,8 +846,7 @@ async function loadAllUsers() {
             if (doc.id !== currentUser.id) {
                 allUsers.push({
                     id: doc.id,
-                    ...userData,
-                    createdAt: userData.createdAt ? userData.createdAt.toDate() : new Date()
+                    ...userData
                 });
             }
         });
@@ -997,8 +898,7 @@ function displaySearchResults(users) {
     searchResults.innerHTML = users.map(user => {
         const isFriend = friends.some(f => f.id === user.id);
         const hasPendingRequest = friendRequests.some(r => 
-            (r.senderId === user.id && r.receiverId === currentUser.id) ||
-            (r.senderId === currentUser.id && r.receiverId === user.id)
+            r.senderId === user.id
         );
         
         let buttonHtml = '';
@@ -1054,11 +954,6 @@ function displaySearchResults(users) {
 
 async function showUserProfile(userId) {
     try {
-        if (!db) {
-            showNotification('Ошибка базы данных', 'error');
-            return;
-        }
-        
         const userDoc = await db.collection('users').doc(userId).get();
         if (!userDoc.exists) {
             showNotification('Пользователь не найден', 'error');
@@ -1111,7 +1006,7 @@ async function showUserProfile(userId) {
                     </div>
                     <div class="profile-info">
                         <h3>${userData.username}</h3>
-                        <p><i class="fas fa-calendar"></i> В BookShelf с: ${userData.createdAt ? userData.createdAt.toDate().toLocaleDateString() : 'Неизвестно'}</p>
+                        <p><i class="fas fa-calendar"></i> В BookShelf с: ${userData.createdAt ? new Date(userData.createdAt).toLocaleDateString() : 'Неизвестно'}</p>
                     </div>
                 </div>
                 
@@ -1184,7 +1079,7 @@ async function showUserProfile(userId) {
 }
 
 async function sendFriendRequest(friendId) {
-    if (!currentUser || !db) return;
+    if (!currentUser) return;
     
     try {
         // Проверяем, не отправили ли уже запрос
@@ -1201,8 +1096,9 @@ async function sendFriendRequest(friendId) {
         }
         
         // Проверяем, не друзья ли уже
-        const isAlreadyFriend = await checkIfFriends(currentUser.id, friendId);
-        if (isAlreadyFriend) {
+        const userDoc = await db.collection('users').doc(currentUser.id).get();
+        const userData = userDoc.data();
+        if (userData.friends && userData.friends.includes(friendId)) {
             showNotification('Вы уже друзья', 'warning');
             return;
         }
@@ -1212,7 +1108,7 @@ async function sendFriendRequest(friendId) {
             senderName: currentUser.username,
             receiverId: friendId,
             status: 'pending',
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            createdAt: new Date().toISOString()
         };
         
         await db.collection('friends').add(requestData);
@@ -1227,20 +1123,8 @@ async function sendFriendRequest(friendId) {
     }
 }
 
-async function checkIfFriends(userId1, userId2) {
-    try {
-        const user1Doc = await db.collection('users').doc(userId1).get();
-        const user1Data = user1Doc.data();
-        
-        return user1Data.friends && user1Data.friends.includes(userId2);
-    } catch (error) {
-        console.error('Ошибка проверки дружбы:', error);
-        return false;
-    }
-}
-
 async function loadFriends() {
-    if (!currentUser || !db) return;
+    if (!currentUser) return;
     
     try {
         const userDoc = await db.collection('users').doc(currentUser.id).get();
@@ -1254,17 +1138,12 @@ async function loadFriends() {
                 const friendData = friendDoc.data();
                 friends.push({
                     id: friendDoc.id,
-                    ...friendData,
-                    createdAt: friendData.createdAt ? friendData.createdAt.toDate() : new Date()
+                    ...friendData
                 });
             }
         }
         
-        console.log(`👥 Загружено ${friends.length} друзей из Firestore`);
-        
-        // Обновляем данные пользователя
-        currentUser.friendDetails = friends;
-        saveSession();
+        console.log(`👥 Загружено ${friends.length} друзей`);
         
         updateFriendsDisplay();
         
@@ -1274,29 +1153,23 @@ async function loadFriends() {
 }
 
 async function loadFriendRequests() {
-    if (!currentUser || !db) return;
+    if (!currentUser) return;
     
     try {
-        const requestsSnapshot = await db.collection('friends')
+        const snapshot = await db.collection('friends')
             .where('receiverId', '==', currentUser.id)
             .where('status', '==', 'pending')
             .get();
         
         friendRequests = [];
-        requestsSnapshot.forEach(doc => {
-            const requestData = doc.data();
+        snapshot.forEach(doc => {
             friendRequests.push({
                 id: doc.id,
-                ...requestData,
-                createdAt: requestData.createdAt ? requestData.createdAt.toDate() : new Date()
+                ...doc.data()
             });
         });
         
-        console.log(`📨 Загружено ${friendRequests.length} запросов из Firestore`);
-        
-        // Обновляем данные пользователя
-        currentUser.friendRequests = friendRequests;
-        saveSession();
+        console.log(`📨 Загружено ${friendRequests.length} запросов`);
         
         updateRequestsDisplay();
         
@@ -1384,7 +1257,7 @@ function updateRequestsDisplay() {
                 <div>
                     <h4>${request.senderName}</h4>
                     <p>Хочет добавить вас в друзья</p>
-                    <small>${request.createdAt ? request.createdAt.toLocaleDateString() : 'Недавно'}</small>
+                    <small>${request.createdAt ? new Date(request.createdAt).toLocaleDateString() : 'Недавно'}</small>
                 </div>
             </div>
             <div class="friend-actions">
@@ -1410,7 +1283,7 @@ function updateRequestsDisplay() {
 }
 
 async function handleFriendRequest(requestId, action) {
-    if (!currentUser || !db) return;
+    if (!currentUser) return;
     
     try {
         const requestDoc = await db.collection('friends').doc(requestId).get();
@@ -1449,9 +1322,6 @@ async function handleFriendRequest(requestId, action) {
         await loadFriends();
         await loadFriendRequests();
         
-        // Сохраняем изменения
-        saveSession();
-        
     } catch (error) {
         console.error('Ошибка обработки запроса:', error);
         showNotification('Ошибка обработки заявки', 'error');
@@ -1461,7 +1331,7 @@ async function handleFriendRequest(requestId, action) {
 async function removeFriend(friendId) {
     if (!confirm('Удалить из друзей?')) return;
     
-    if (!currentUser || !db) return;
+    if (!currentUser) return;
     
     try {
         // Удаляем из списка друзей текущего пользователя
@@ -1475,8 +1345,7 @@ async function removeFriend(friendId) {
         });
         
         // Обновляем или удаляем запись в коллекции friends
-        const friendsRef = db.collection('friends');
-        const snapshot = await friendsRef
+        const snapshot = await db.collection('friends')
             .where('senderId', 'in', [currentUser.id, friendId])
             .where('receiverId', 'in', [currentUser.id, friendId])
             .where('status', '==', 'accepted')
@@ -1484,13 +1353,12 @@ async function removeFriend(friendId) {
             .get();
         
         snapshot.forEach(async doc => {
-            await db.collection('friends').doc(doc.id).update({ status: 'removed' });
+            await db.collection('friends').doc(doc.id).delete();
         });
         
         showNotification('Друг удален', 'info');
         
         await loadFriends();
-        saveSession();
         
     } catch (error) {
         console.error('Ошибка удаления друга:', error);
@@ -1519,22 +1387,14 @@ function setupEventListeners() {
     });
     
     // Кнопки авторизации
-    const loginBtn = document.getElementById('loginBtn');
-    const registerBtn = document.getElementById('registerBtn');
-    const startBtn = document.getElementById('startBtn');
-    const logoutBtn = document.getElementById('logoutBtn');
-    
-    if (loginBtn) loginBtn.addEventListener('click', () => showAuthModal('login'));
-    if (registerBtn) registerBtn.addEventListener('click', () => showAuthModal('register'));
-    if (startBtn) startBtn.addEventListener('click', () => showAuthModal('login'));
-    if (logoutBtn) logoutBtn.addEventListener('click', logout);
+    document.getElementById('loginBtn').addEventListener('click', () => showAuthModal('login'));
+    document.getElementById('registerBtn').addEventListener('click', () => showAuthModal('register'));
+    document.getElementById('startBtn').addEventListener('click', () => showAuthModal('login'));
+    document.getElementById('logoutBtn').addEventListener('click', logout);
     
     // Модальное окно авторизации
-    const closeBtn = document.querySelector('.close');
-    const authForm = document.getElementById('authForm');
-    
-    if (closeBtn) closeBtn.addEventListener('click', hideAuthModal);
-    if (authForm) authForm.addEventListener('submit', handleAuth);
+    document.querySelector('.close').addEventListener('click', hideAuthModal);
+    document.getElementById('authForm').addEventListener('submit', handleAuth);
     
     window.addEventListener('click', (e) => {
         if (e.target === document.getElementById('authModal')) {
@@ -1556,8 +1416,7 @@ function setupEventListeners() {
     });
     
     // Книги
-    const addBookBtn = document.getElementById('addBookBtn');
-    if (addBookBtn) addBookBtn.addEventListener('click', addBook);
+    document.getElementById('addBookBtn').addEventListener('click', addBook);
     
     setupRatingStars();
     
@@ -1571,12 +1430,10 @@ function setupEventListeners() {
     });
     
     // Клубы
-    const createClubBtn = document.getElementById('createClubBtn');
-    if (createClubBtn) createClubBtn.addEventListener('click', createClub);
+    document.getElementById('createClubBtn').addEventListener('click', createClub);
     
     // Друзья
-    const searchFriendBtn = document.getElementById('searchFriendBtn');
-    if (searchFriendBtn) searchFriendBtn.addEventListener('click', searchFriends);
+    document.getElementById('searchFriendBtn').addEventListener('click', searchFriends);
     
     const friendSearch = document.getElementById('friendSearch');
     if (friendSearch) {
@@ -1589,13 +1446,9 @@ function setupEventListeners() {
     }
     
     // Мобильное меню
-    const menuToggle = document.querySelector('.menu-toggle');
-    if (menuToggle) {
-        menuToggle.addEventListener('click', function() {
-            const navLinks = document.querySelector('.nav-links');
-            if (navLinks) navLinks.classList.toggle('active');
-        });
-    }
+    document.querySelector('.menu-toggle').addEventListener('click', function() {
+        document.querySelector('.nav-links').classList.toggle('active');
+    });
     
     // Сохраняем сессию при закрытии страницы
     window.addEventListener('beforeunload', () => {
@@ -1606,52 +1459,11 @@ function setupEventListeners() {
 }
 
 // ==============================================
-// ИНИЦИАЛИЗАЦИЯ ДЕМО-ДАННЫХ
-// ==============================================
-async function initDemoData() {
-    try {
-        if (!db) {
-            console.warn('База данных не инициализирована, пропускаем создание демо-данных');
-            return;
-        }
-        
-        const usersRef = db.collection('users');
-        const snapshot = await usersRef.where('username', '==', 'demo').limit(1).get();
-        
-        if (snapshot.empty) {
-            console.log("👤 Создаем демо-пользователя...");
-            
-            const demoUser = {
-                username: 'demo',
-                password: 'demo123',
-                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                books: [],
-                friends: [],
-                clubs: [],
-                friendRequests: []
-            };
-            
-            await usersRef.add(demoUser);
-            console.log("✅ Демо-пользователь создан");
-        } else {
-            console.log("✅ Демо-пользователь уже существует");
-        }
-        
-    } catch (error) {
-        console.error('❌ Ошибка инициализации демо-данных:', error);
-    }
-}
-
-// ==============================================
 // ВОССТАНОВЛЕНИЕ СЕССИИ
 // ==============================================
 async function restoreUserSession(sessionData) {
     try {
         console.log("🔄 Восстановление сессии пользователя...");
-        
-        if (!db) {
-            throw new Error('База данных не инициализирована');
-        }
         
         // Получаем данные пользователя из Firestore
         const usersRef = db.collection('users');
@@ -1672,25 +1484,27 @@ async function restoreUserSession(sessionData) {
             userId = doc.id;
         });
         
-        // Получаем полные данные пользователя
-        const fullUserData = await getUserFullData(userId);
-        
+        // Создаем объект пользователя
         currentUser = {
             id: userId,
             username: userData.username,
             password: userData.password,
-            createdAt: userData.createdAt ? userData.createdAt.toDate() : new Date(),
-            ...fullUserData
+            createdAt: userData.createdAt || new Date(),
+            books: [],
+            friends: [],
+            clubs: [],
+            friendRequests: []
         };
         
         console.log("✅ Сессия восстановлена для:", currentUser.username);
         
         // Обновляем интерфейс
         updateUI();
-        switchPage('shelf');
         
-        // Загружаем книги
-        loadBooks();
+        // Загружаем данные пользователя
+        await loadUserData();
+        
+        switchPage('shelf');
         
         showNotification('Сессия восстановлена', 'info');
         
@@ -1708,9 +1522,6 @@ async function init() {
     console.log("🚀 Запуск приложения BookShelf");
     
     try {
-        // Инициализируем демо-данные
-        await initDemoData();
-        
         // Проверяем сохраненную сессию
         const sessionData = restoreSession();
         if (sessionData) {
