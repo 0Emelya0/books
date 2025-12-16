@@ -5,498 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BookShelf - Ваша цифровая книжная полка</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            color: #333;
-            transition: background 0.3s;
-        }
-
-        body.home-page {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
-
-        body.shelf-page {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-        }
-
-        body.clubs-page {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-        }
-
-        body.friends-page {
-            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        /* Навигация */
-        .navbar {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 15px;
-            padding: 15px 25px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 30px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
-        }
-
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 24px;
-            font-weight: bold;
-            color: #667eea;
-        }
-
-        .logo i {
-            font-size: 28px;
-        }
-
-        .nav-links {
-            display: flex;
-            gap: 20px;
-        }
-
-        .nav-link {
-            text-decoration: none;
-            color: #555;
-            padding: 10px 20px;
-            border-radius: 25px;
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .nav-link:hover {
-            background: #667eea;
-            color: white;
-            transform: translateY(-2px);
-        }
-
-        .nav-link.active {
-            background: #667eea;
-            color: white;
-        }
-
-        .auth-buttons {
-            display: flex;
-            gap: 10px;
-        }
-
-        .user-menu {
-            display: none;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .user-avatar {
-            width: 40px;
-            height: 40px;
-            background: #667eea;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-        }
-
-        .menu-toggle {
-            display: none;
-            background: none;
-            border: none;
-            font-size: 24px;
-            color: #667eea;
-            cursor: pointer;
-        }
-
-        /* Страницы */
-        .page {
-            display: none;
-            animation: fadeIn 0.5s;
-        }
-
-        .page.active {
-            display: block;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* Главная страница */
-        .hero {
-            text-align: center;
-            padding: 80px 20px;
-            color: white;
-        }
-
-        .hero h1 {
-            font-size: 48px;
-            margin-bottom: 20px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-        }
-
-        .hero p {
-            font-size: 20px;
-            margin-bottom: 40px;
-            opacity: 0.9;
-        }
-
-        .features {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 30px;
-            margin-top: 60px;
-        }
-
-        .feature-card {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 30px;
-            border-radius: 15px;
-            text-align: center;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            transition: transform 0.3s;
-        }
-
-        .feature-card:hover {
-            transform: translateY(-10px);
-        }
-
-        .feature-card i {
-            font-size: 48px;
-            color: #667eea;
-            margin-bottom: 20px;
-        }
-
-        /* Полка с книгами */
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-
-        .stat-card {
-            background: white;
-            padding: 20px;
-            border-radius: 15px;
-            text-align: center;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-        }
-
-        .stat-card h3 {
-            color: #667eea;
-            font-size: 36px;
-            margin-bottom: 10px;
-        }
-
-        .book-form {
-            background: white;
-            padding: 30px;
-            border-radius: 15px;
-            margin-bottom: 30px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
-        }
-
-        .form-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-bottom: 20px;
-        }
-
-        .form-group {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .form-group label {
-            margin-bottom: 8px;
-            color: #555;
-            font-weight: 500;
-        }
-
-        .form-group input,
-        .form-group select,
-        .form-group textarea {
-            padding: 12px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 16px;
-            transition: border-color 0.3s;
-        }
-
-        .form-group input:focus,
-        .form-group select:focus,
-        .form-group textarea:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        .stars {
-            display: flex;
-            gap: 5px;
-            margin: 10px 0;
-        }
-
-        .stars i {
-            font-size: 24px;
-            color: #ffd700;
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-
-        .stars i:hover {
-            transform: scale(1.2);
-        }
-
-        .tabs {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-
-        .tab {
-            padding: 10px 25px;
-            background: rgba(255, 255, 255, 0.9);
-            border-radius: 25px;
-            cursor: pointer;
-            transition: all 0.3s;
-            border: 2px solid transparent;
-        }
-
-        .tab:hover {
-            background: white;
-            border-color: #667eea;
-        }
-
-        .tab.active {
-            background: #667eea;
-            color: white;
-        }
-
-        .books-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 20px;
-        }
-
-        .book-card {
-            background: white;
-            padding: 20px;
-            border-radius: 15px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            transition: transform 0.3s;
-        }
-
-        .book-card:hover {
-            transform: translateY(-5px);
-        }
-
-        .book-card h4 {
-            color: #333;
-            margin-bottom: 10px;
-            font-size: 18px;
-        }
-
-        .book-meta {
-            color: #666;
-            margin-bottom: 8px;
-            font-size: 14px;
-        }
-
-        .review {
-            color: #555;
-            font-style: italic;
-            margin: 15px 0;
-            padding: 10px;
-            background: #f9f9f9;
-            border-radius: 8px;
-        }
-
-        /* Кнопки */
-        .btn {
-            padding: 12px 25px;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.3s;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-
-        .btn-primary {
-            background: #667eea;
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: #5a6fd8;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-        }
-
-        .btn-outline {
-            background: transparent;
-            color: #667eea;
-            border: 2px solid #667eea;
-        }
-
-        .btn-outline:hover {
-            background: #667eea;
-            color: white;
-        }
-
-        .btn-block {
-            width: 100%;
-        }
-
-        .btn-small {
-            padding: 8px 15px;
-            font-size: 14px;
-        }
-
-        /* Модальное окно */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
-            backdrop-filter: blur(5px);
-        }
-
-        .modal-content {
-            background: white;
-            padding: 40px;
-            border-radius: 20px;
-            width: 90%;
-            max-width: 400px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
-            position: relative;
-        }
-
-        .close {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            font-size: 24px;
-            cursor: pointer;
-            color: #999;
-            transition: color 0.3s;
-        }
-
-        .close:hover {
-            color: #333;
-        }
-
-        .modal-tabs {
-            display: flex;
-            margin-bottom: 30px;
-            border-bottom: 2px solid #eee;
-        }
-
-        .tab-btn {
-            flex: 1;
-            padding: 15px;
-            text-align: center;
-            cursor: pointer;
-            border-bottom: 3px solid transparent;
-            transition: all 0.3s;
-        }
-
-        .tab-btn.active {
-            border-bottom-color: #667eea;
-            color: #667eea;
-            font-weight: 500;
-        }
-
-        /* Адаптивность */
-        @media (max-width: 768px) {
-            .menu-toggle {
-                display: block;
-            }
-
-            .nav-links {
-                display: none;
-                position: absolute;
-                top: 100%;
-                left: 0;
-                right: 0;
-                background: white;
-                flex-direction: column;
-                padding: 20px;
-                border-radius: 0 0 15px 15px;
-                box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-                z-index: 100;
-            }
-
-            .nav-links.active {
-                display: flex;
-            }
-
-            .hero h1 {
-                font-size: 36px;
-            }
-
-            .features {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .empty {
-            text-align: center;
-            padding: 40px;
-            color: #666;
-            background: rgba(255,255,255,0.9);
-            border-radius: 15px;
-            font-size: 18px;
-        }
-
-        .badge {
-            display: inline-block;
-            padding: 5px 10px;
-            background: #e0e0e0;
-            border-radius: 15px;
-            font-size: 12px;
-            color: #666;
-        }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- Декоративные плавающие элементы -->
+    <div class="floating-elements">
+        <i class="fas fa-book floating-element"></i>
+        <i class="fas fa-book-open floating-element"></i>
+        <i class="fas fa-bookmark floating-element"></i>
+        <i class="fas fa-book-reader floating-element"></i>
+    </div>
+
     <div class="container">
         <!-- Навигация -->
         <nav class="navbar">
@@ -557,8 +76,8 @@
         <div id="homePage" class="page active">
             <div class="hero">
                 <h1>Ваша цифровая книжная полка</h1>
-                <p>Организуйте свою библиотеку, делитесь впечатлениями и находите единомышленников</p>
-                <button id="startBtn" class="btn btn-primary" style="font-size: 18px; padding: 15px 30px;">
+                <p>Организуйте свою библиотеку, делитесь впечатлениями и находите единомышленников в уютном сообществе читателей</p>
+                <button id="startBtn" class="btn btn-primary" style="font-size: 18px; padding: 18px 40px;">
                     <i class="fas fa-rocket"></i>
                     Начать путешествие
                 </button>
@@ -668,7 +187,7 @@
                 
                 <div class="form-group">
                     <label for="bookReview">Рецензия (необязательно)</label>
-                    <textarea id="bookReview" rows="3" placeholder="Поделитесь своими впечатлениями о книге..."></textarea>
+                    <textarea id="bookReview" rows="4" placeholder="Поделитесь своими впечатлениями о книге..."></textarea>
                 </div>
                 
                 <button id="addBookBtn" class="btn btn-primary btn-block">
@@ -703,8 +222,8 @@
         <div id="clubsPage" class="page">
             <h2><i class="fas fa-users"></i> Книжные клубы</h2>
             
-            <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 30px;">
-                <div>
+            <div class="clubs-container">
+                <div class="clubs-left">
                     <h3><i class="fas fa-plus-circle"></i> Создать клуб</h3>
                     <div class="book-form">
                         <div class="form-group">
@@ -723,7 +242,7 @@
                         </div>
                         <div class="form-group">
                             <label for="clubDescription">Описание *</label>
-                            <textarea id="clubDescription" rows="4" placeholder="Опишите тематику вашего клуба..."></textarea>
+                            <textarea id="clubDescription" rows="5" placeholder="Опишите тематику вашего клуба..."></textarea>
                         </div>
                         <button id="createClubBtn" class="btn btn-primary btn-block">
                             <i class="fas fa-plus"></i>
@@ -731,13 +250,13 @@
                         </button>
                     </div>
                     
-                    <h3 style="margin-top: 30px;"><i class="fas fa-star"></i> Мои клубы</h3>
+                    <h3><i class="fas fa-star"></i> Мои клубы</h3>
                     <div id="myClubsList">
                         <p class="empty">Вы не состоите в клубах</p>
                     </div>
                 </div>
                 
-                <div>
+                <div class="clubs-right">
                     <h3><i class="fas fa-compass"></i> Все клубы</h3>
                     <div id="clubsGrid" class="books-grid">
                         <p class="empty">Пока нет клубов. Создайте первый!</p>
@@ -750,13 +269,13 @@
         <div id="friendsPage" class="page">
             <h2><i class="fas fa-user-friends"></i> Друзья</h2>
             
-            <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 30px;">
-                <div>
+            <div class="friends-container">
+                <div class="friends-left">
                     <h3><i class="fas fa-search"></i> Поиск друзей</h3>
                     <div class="book-form">
                         <div class="form-group">
                             <label for="friendSearch">Поиск по никнейму</label>
-                            <div style="display: flex; gap: 10px;">
+                            <div class="search-wrapper">
                                 <input type="text" id="friendSearch" placeholder="Введите никнейм...">
                                 <button id="searchFriendBtn" class="btn btn-primary">
                                     <i class="fas fa-search"></i>
@@ -765,19 +284,19 @@
                         </div>
                     </div>
                     
-                    <div id="searchResults" style="margin-top: 20px;">
+                    <div id="searchResults">
                         <p class="empty">Введите никнейм для поиска</p>
                     </div>
                     
-                    <h3 style="margin-top: 30px;"><i class="fas fa-bell"></i> Заявки в друзья <span id="requestsCount" class="badge">0</span></h3>
-                    <div id="requestsList" style="margin-top: 15px;">
+                    <h3><i class="fas fa-bell"></i> Заявки в друзья <span id="requestsCount" class="badge">0</span></h3>
+                    <div id="requestsList">
                         <p class="empty">Нет заявок в друзья</p>
                     </div>
                 </div>
                 
-                <div>
+                <div class="friends-right">
                     <h3><i class="fas fa-users"></i> Мои друзья <span id="friendsCount" class="badge">0</span></h3>
-                    <div id="friendsList" style="margin-top: 15px;">
+                    <div id="friendsList">
                         <p class="empty">Пока нет друзей</p>
                     </div>
                 </div>
@@ -789,9 +308,7 @@
     <div id="authModal" class="modal">
         <div class="modal-content">
             <span class="close">&times;</span>
-            <h2 style="text-align: center; margin-bottom: 30px;">
-                <i class="fas fa-book"></i> BookShelf
-            </h2>
+            <h2><i class="fas fa-book"></i> BookShelf</h2>
             
             <div class="modal-tabs">
                 <div class="tab-btn active" data-tab="login">Вход</div>
@@ -809,12 +326,12 @@
                     <input type="password" id="password" placeholder="Введите пароль" required>
                 </div>
                 
-                <button type="submit" class="btn btn-primary btn-block" style="margin-top: 20px;">
+                <button type="submit" class="btn btn-primary btn-block">
                     <span id="submitText">Войти</span>
                 </button>
                 
-                <p style="text-align: center; margin-top: 20px; color: #666; font-size: 14px;">
-                    Для тестирования можно использовать: demo / demo123
+                <p class="demo-info">
+                    <i class="fas fa-info-circle"></i> Для тестирования используйте: demo / demo123
                 </p>
             </form>
         </div>
