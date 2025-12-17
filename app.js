@@ -791,7 +791,7 @@ async function joinClub(clubId) {
 }
 
 // ==============================================
-// ДРУЗЬЯ (ИСПРАВЛЕННЫЕ ФУНКЦИИ)
+// ДРУЗЬЯ (ИСПРАВЛЕННЫЙ ПОИСК И ПЛАШКА ПРОФИЛЯ)
 // ==============================================
 async function loadAllUsers() {
     if (!currentUser) return;
@@ -838,16 +838,37 @@ async function searchFriends() {
         return;
     }
     
-    // Если пользователи еще не загружены, загружаем их
-    if (allUsers.length === 0) {
-        await loadAllUsers();
+    showNotification('Поиск пользователей...', 'info');
+    
+    try {
+        // Ищем пользователей в Firestore по никнейму
+        const snapshot = await db.collection('users')
+            .where('username', '>=', searchTerm)
+            .where('username', '<=', searchTerm + '\uf8ff')
+            .get();
+        
+        const results = [];
+        snapshot.forEach(doc => {
+            const userData = doc.data();
+            if (doc.id !== currentUser.id) {
+                results.push({
+                    id: doc.id,
+                    username: userData.username,
+                    books: userData.books || [],
+                    clubs: userData.clubs || [],
+                    friends: userData.friends || [],
+                    createdAt: userData.createdAt || new Date().toISOString()
+                });
+            }
+        });
+        
+        console.log(`🔍 Найдено ${results.length} пользователей по запросу: ${searchTerm}`);
+        displaySearchResults(results);
+        
+    } catch (error) {
+        console.error('Ошибка поиска пользователей:', error);
+        showNotification('Ошибка поиска пользователей', 'error');
     }
-    
-    const results = allUsers.filter(user => 
-        user.username.toLowerCase().includes(searchTerm)
-    );
-    
-    displaySearchResults(results);
 }
 
 function displaySearchResults(users) {
@@ -883,20 +904,20 @@ function displaySearchResults(users) {
         }
         
         return `
-            <div class="friend-item" style="background: rgba(255, 255, 255, 0.92); padding: 20px; border-radius: 16px; margin-bottom: 15px; box-shadow: 0 4px 16px rgba(31, 38, 135, 0.08);">
-                <div class="friend-info" style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
-                    <div class="user-avatar" style="width: 50px; height: 50px; background: linear-gradient(135deg, #8a9eff 0%, #a991f7 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px;">
+            <div class="friend-item">
+                <div class="friend-info">
+                    <div class="user-avatar">
                         <i class="fas fa-user-circle"></i>
                     </div>
                     <div>
-                        <h4 style="color: #2c3e50; margin-bottom: 5px;">${user.username}</h4>
-                        <p style="color: #5a6c8c; font-size: 14px; margin: 3px 0;">Книг на полке: ${user.books ? user.books.length : 0}</p>
-                        <p style="color: #5a6c8c; font-size: 14px; margin: 3px 0;">В клубах: ${user.clubs ? user.clubs.length : 0}</p>
+                        <h4>${user.username}</h4>
+                        <p class="friend-meta">Книг на полке: ${user.books ? user.books.length : 0}</p>
+                        <p class="friend-meta">В клубах: ${user.clubs ? user.clubs.length : 0}</p>
                     </div>
                 </div>
-                <div class="friend-actions" style="display: flex; gap: 10px;">
+                <div class="friend-actions">
                     ${buttonHtml}
-                    <button class="btn btn-outline btn-small view-profile" data-user-id="${user.id}" style="padding: 8px 15px; font-size: 14px;">
+                    <button class="btn btn-outline btn-small view-profile" data-user-id="${user.id}">
                         Профиль
                     </button>
                 </div>
@@ -942,130 +963,113 @@ async function showUserProfile(userId) {
             .get();
         const clubsCount = clubsSnapshot.size;
         
-        const profileModal = document.createElement('div');
-        profileModal.className = 'modal';
-        profileModal.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(15, 23, 42, 0.7);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 2000;
-        `;
+        // Получаем друзей пользователя
+        const friendsCount = userData.friends ? userData.friends.length : 0;
         
-        profileModal.innerHTML = `
-            <div class="modal-content" style="
-                background: rgba(255, 255, 255, 0.95);
-                padding: 32px;
-                border-radius: 24px;
-                max-width: 500px;
-                width: 90%;
-                max-height: 80vh;
-                overflow-y: auto;
-            ">
-                <span class="close-profile" style="
-                    position: absolute;
-                    right: 20px;
-                    top: 20px;
-                    font-size: 1.8rem;
-                    cursor: pointer;
-                    color: #6b7b9c;
-                    transition: all 0.3s;
-                    width: 40px;
-                    height: 40px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    border-radius: 12px;
-                    background: rgba(255, 255, 255, 0.9);
-                    backdrop-filter: blur(10px);
-                    -webkit-backdrop-filter: blur(10px);
-                    border: 1px solid #e8edf5;
-                    z-index: 10;
-                ">&times;</span>
-                <h2 style="color: #2c3e50; margin-bottom: 24px; font-size: 28px;">
-                    <i class="fas fa-user" style="background: linear-gradient(135deg, #8a9eff 0%, #a991f7 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;"></i> Профиль пользователя
-                </h2>
+        // Создаем HTML для плашки профиля
+        const profileHTML = `
+            <div class="profile-card">
+                <span class="close-profile">&times;</span>
                 
-                <div class="profile-header" style="display: flex; align-items: center; gap: 24px; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 2px solid #e8edf5; position: relative;">
-                    <div class="profile-avatar" style="width: 90px; height: 90px; border-radius: 50%; background: linear-gradient(135deg, #8a9eff 0%, #a991f7 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 3rem; box-shadow: 0 8px 32px rgba(31, 38, 135, 0.12); border: 3px solid white;">
+                <div class="profile-header">
+                    <div class="profile-avatar">
                         <i class="fas fa-user-circle"></i>
                     </div>
                     <div class="profile-info">
-                        <h3 style="color: #2c3e50; margin-bottom: 8px; font-size: 1.8rem; font-weight: 700;">${userData.username}</h3>
-                        <p style="color: #5a6c8c; display: flex; align-items: center; gap: 10px; font-size: 0.95rem;">
-                            <i class="fas fa-calendar" style="color: #8a9eff;"></i> В BookShelf с: ${userData.createdAt ? new Date(userData.createdAt).toLocaleDateString() : 'Неизвестно'}
+                        <h3>${userData.username}</h3>
+                        <p>
+                            <i class="fas fa-calendar"></i>
+                            В BookShelf с: ${userData.createdAt ? new Date(userData.createdAt).toLocaleDateString() : 'Недавно'}
                         </p>
                     </div>
                 </div>
                 
-                <div class="profile-stats" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px;">
-                    <div class="stat-item" style="background: rgba(255, 255, 255, 0.9); padding: 20px; border-radius: 16px; text-align: center; border: 2px solid #e8edf5; transition: all 0.3s; position: relative; overflow: hidden; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);">
-                        <i class="fas fa-book" style="font-size: 2.2rem; color: #8a9eff; margin-bottom: 12px; display: block; transition: transform 0.3s;"></i>
+                <div class="profile-stats">
+                    <div class="stat-item">
+                        <i class="fas fa-book"></i>
                         <div>
-                            <h4 style="font-size: 1.6rem; color: #2c3e50; margin-bottom: 6px; font-weight: 700;">${booksCount}</h4>
-                            <p style="color: #5a6c8c; font-size: 0.9rem; font-weight: 500;">Книг на полке</p>
+                            <h4>${booksCount}</h4>
+                            <p>Книг на полке</p>
                         </div>
                     </div>
-                    <div class="stat-item" style="background: rgba(255, 255, 255, 0.9); padding: 20px; border-radius: 16px; text-align: center; border: 2px solid #e8edf5; transition: all 0.3s; position: relative; overflow: hidden; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);">
-                        <i class="fas fa-users" style="font-size: 2.2rem; color: #8a9eff; margin-bottom: 12px; display: block; transition: transform 0.3s;"></i>
+                    <div class="stat-item">
+                        <i class="fas fa-users"></i>
                         <div>
-                            <h4 style="font-size: 1.6rem; color: #2c3e50; margin-bottom: 6px; font-weight: 700;">${userData.friends ? userData.friends.length : 0}</h4>
-                            <p style="color: #5a6c8c; font-size: 0.9rem; font-weight: 500;">Друзей</p>
+                            <h4>${friendsCount}</h4>
+                            <p>Друзей</p>
                         </div>
                     </div>
-                    <div class="stat-item" style="background: rgba(255, 255, 255, 0.9); padding: 20px; border-radius: 16px; text-align: center; border: 2px solid #e8edf5; transition: all 0.3s; position: relative; overflow: hidden; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);">
-                        <i class="fas fa-users" style="font-size: 2.2rem; color: #8a9eff; margin-bottom: 12px; display: block; transition: transform 0.3s;"></i>
+                    <div class="stat-item">
+                        <i class="fas fa-user-friends"></i>
                         <div>
-                            <h4 style="font-size: 1.6rem; color: #2c3e50; margin-bottom: 6px; font-weight: 700;">${clubsCount}</h4>
-                            <p style="color: #5a6c8c; font-size: 0.9rem; font-weight: 500;">Клубов</p>
+                            <h4>${clubsCount}</h4>
+                            <p>Клубов</p>
                         </div>
                     </div>
                 </div>
                 
                 <div class="profile-actions">
                     ${friends.some(f => f.id === userId) ? 
-                        '<button class="btn btn-outline btn-block remove-friend-profile" data-user-id="' + userId + '" style="width: 100%; padding: 16px; margin-top: 10px; border-radius: 12px; background: transparent; color: #8a9eff; border: 2px solid #8a9eff; font-weight: 600; cursor: pointer; transition: all 0.3s;">Удалить из друзей</button>' :
-                        '<button class="btn btn-primary btn-block add-friend-profile" data-user-id="' + userId + '" style="width: 100%; padding: 16px; margin-top: 10px; border-radius: 12px; background: linear-gradient(135deg, #8a9eff 0%, #a991f7 100%); color: white; border: none; font-weight: 600; cursor: pointer; transition: all 0.3s;">Добавить в друзья</button>'
+                        `<button class="btn btn-outline btn-block remove-friend-profile" data-user-id="${userId}">
+                            Удалить из друзей
+                        </button>` :
+                        `<button class="btn btn-primary btn-block add-friend-profile" data-user-id="${userId}">
+                            Добавить в друзья
+                        </button>`
                     }
                 </div>
             </div>
         `;
         
-        document.body.appendChild(profileModal);
+        // Добавляем плашку на страницу
+        const profileContainer = document.createElement('div');
+        profileContainer.className = 'profile-container';
+        profileContainer.innerHTML = profileHTML;
         
-        profileModal.querySelector('.close-profile').addEventListener('click', () => {
-            profileModal.remove();
-        });
+        // Вставляем плашку перед списком поиска
+        const searchResults = document.getElementById('searchResults');
+        if (searchResults) {
+            searchResults.parentNode.insertBefore(profileContainer, searchResults);
+        }
         
-        profileModal.addEventListener('click', (e) => {
-            if (e.target === profileModal) {
-                profileModal.remove();
-            }
-        });
+        // Добавляем обработчики событий для плашки
+        const closeBtn = profileContainer.querySelector('.close-profile');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                profileContainer.remove();
+            });
+        }
         
-        const addFriendBtn = profileModal.querySelector('.add-friend-profile');
-        const removeFriendBtn = profileModal.querySelector('.remove-friend-profile');
+        const addFriendBtn = profileContainer.querySelector('.add-friend-profile');
+        const removeFriendBtn = profileContainer.querySelector('.remove-friend-profile');
         
         if (addFriendBtn) {
             addFriendBtn.addEventListener('click', async () => {
                 await sendFriendRequest(userId);
-                profileModal.remove();
+                profileContainer.remove();
             });
         }
         
         if (removeFriendBtn) {
             removeFriendBtn.addEventListener('click', async () => {
-                await removeFriend(userId);
-                profileModal.remove();
+                if (confirm('Удалить из друзей?')) {
+                    await removeFriend(userId);
+                    profileContainer.remove();
+                }
             });
         }
+        
+        // Закрываем плашку при клике вне её
+        setTimeout(() => {
+            const closeProfileOnOutsideClick = (e) => {
+                if (!profileContainer.contains(e.target)) {
+                    profileContainer.remove();
+                    document.removeEventListener('click', closeProfileOnOutsideClick);
+                }
+            };
+            
+            document.addEventListener('click', closeProfileOnOutsideClick);
+        }, 100);
         
     } catch (error) {
         console.error('Ошибка загрузки профиля:', error);
@@ -1207,22 +1211,22 @@ function updateFriendsDisplay() {
     }
     
     friendsList.innerHTML = friends.map(friend => `
-        <div class="friend-item" style="background: rgba(255, 255, 255, 0.92); padding: 20px; border-radius: 16px; margin-bottom: 15px; box-shadow: 0 4px 16px rgba(31, 38, 135, 0.08);">
-            <div class="friend-info" style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
-                <div class="user-avatar" style="width: 50px; height: 50px; background: linear-gradient(135deg, #8a9eff 0%, #a991f7 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px;">
+        <div class="friend-item">
+            <div class="friend-info">
+                <div class="user-avatar">
                     <i class="fas fa-user-circle"></i>
                 </div>
                 <div>
-                    <h4 style="color: #2c3e50; margin-bottom: 5px;">${friend.username}</h4>
-                    <p style="color: #5a6c8c; font-size: 14px; margin: 3px 0;">Книг: ${friend.books ? friend.books.length : 0}</p>
-                    <p style="color: #5a6c8c; font-size: 14px; margin: 3px 0;">В клубах: ${friend.clubs ? friend.clubs.length : 0}</p>
+                    <h4>${friend.username}</h4>
+                    <p class="friend-meta">Книг: ${friend.books ? friend.books.length : 0}</p>
+                    <p class="friend-meta">В клубах: ${friend.clubs ? friend.clubs.length : 0}</p>
                 </div>
             </div>
-            <div class="friend-actions" style="display: flex; gap: 10px;">
-                <button class="btn btn-outline btn-small view-friend-profile" data-user-id="${friend.id}" style="padding: 8px 15px; font-size: 14px;">
+            <div class="friend-actions">
+                <button class="btn btn-outline btn-small view-friend-profile" data-user-id="${friend.id}">
                     Профиль
                 </button>
-                <button class="btn btn-outline btn-small remove-friend" data-user-id="${friend.id}" style="padding: 8px 15px; font-size: 14px;">
+                <button class="btn btn-outline btn-small remove-friend" data-user-id="${friend.id}">
                     Удалить
                 </button>
             </div>
@@ -1262,22 +1266,22 @@ function updateRequestsDisplay() {
     }
     
     requestsList.innerHTML = friendRequests.map(request => `
-        <div class="request-item" style="background: rgba(255, 255, 255, 0.92); padding: 20px; border-radius: 16px; margin-bottom: 15px; box-shadow: 0 4px 16px rgba(31, 38, 135, 0.08);">
-            <div class="friend-info" style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
-                <div class="user-avatar" style="width: 50px; height: 50px; background: linear-gradient(135deg, #8a9eff 0%, #a991f7 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px;">
+        <div class="request-item">
+            <div class="friend-info">
+                <div class="user-avatar">
                     <i class="fas fa-user-circle"></i>
                 </div>
                 <div>
-                    <h4 style="color: #2c3e50; margin-bottom: 5px;">${request.senderName}</h4>
-                    <p style="color: #5a6c8c; font-size: 14px; margin: 3px 0;">Хочет добавить вас в друзья</p>
-                    <small style="color: #8a9eff; font-size: 12px;">${request.createdAt ? new Date(request.createdAt).toLocaleDateString() : 'Недавно'}</small>
+                    <h4>${request.senderName}</h4>
+                    <p class="friend-meta">Хочет добавить вас в друзья</p>
+                    <small>${request.createdAt ? new Date(request.createdAt).toLocaleDateString() : 'Недавно'}</small>
                 </div>
             </div>
-            <div class="friend-actions" style="display: flex; gap: 10px;">
-                <button class="btn btn-primary btn-small accept-request" data-request-id="${request.id}" style="padding: 8px 15px; font-size: 14px;">
+            <div class="friend-actions">
+                <button class="btn btn-primary btn-small accept-request" data-request-id="${request.id}">
                     Принять
                 </button>
-                <button class="btn btn-outline btn-small decline-request" data-request-id="${request.id}" style="padding: 8px 15px; font-size: 14px;">
+                <button class="btn btn-outline btn-small decline-request" data-request-id="${request.id}">
                     Отклонить
                 </button>
             </div>
