@@ -1012,7 +1012,31 @@ body.friends-page::after {
     margin-right: 8px;
 }
 
-/* Стили для профиля пользователя */
+/* Стили для плашки профиля (для скриншота) */
+.profile-card {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 249, 252, 0.95) 100%);
+    border-radius: var(--radius-xl);
+    padding: 32px;
+    margin: 40px auto;
+    max-width: 500px;
+    box-shadow: var(--shadow-xl);
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+}
+
+.profile-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--primary), var(--secondary), var(--accent));
+}
+
 .profile-header {
     display: flex;
     align-items: center;
@@ -1115,6 +1139,8 @@ body.friends-page::after {
 }
 
 .profile-actions {
+    display: flex;
+    gap: 12px;
     margin-top: 24px;
 }
 
