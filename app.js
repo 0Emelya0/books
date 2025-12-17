@@ -367,7 +367,7 @@ function updateUI() {
         userMenu.style.display = 'flex';
         
         if (userName) userName.textContent = currentUser.username;
-        if (currentUserSpan) currentUserSpan.textContent = `Добро пожаловать, ${currentUser.username}!`;
+        if (currentUserSpan) currentUserSpan.textContent = currentUser.username;
     } else {
         authButtons.style.display = 'flex';
         userMenu.style.display = 'none';
@@ -791,7 +791,54 @@ async function joinClub(clubId) {
 }
 
 // ==============================================
-// ДРУЗЬЯ (ИСПРАВЛЕННЫЙ ПОИСК И ДОБАВЛЕНИЕ)
+// УТИЛИТЫ ДЛЯ РАБОТЫ С ДАННЫМИ ПОЛЬЗОВАТЕЛЯ
+// ==============================================
+async function getUserClubs(userId) {
+    try {
+        const snapshot = await db.collection('clubs')
+            .where('members', 'array-contains', userId)
+            .get();
+        
+        const clubs = [];
+        snapshot.forEach(doc => {
+            clubs.push({
+                id: doc.id,
+                name: doc.data().name
+            });
+        });
+        
+        return clubs;
+    } catch (error) {
+        console.error('Ошибка получения клубов пользователя:', error);
+        return [];
+    }
+}
+
+async function getUserBooksStats(userId) {
+    try {
+        const snapshot = await db.collection('books')
+            .where('userId', '==', userId)
+            .get();
+        
+        const books = [];
+        snapshot.forEach(doc => {
+            books.push(doc.data());
+        });
+        
+        return {
+            total: books.length,
+            read: books.filter(b => b.status === 'read').length,
+            reading: books.filter(b => b.status === 'reading').length,
+            want: books.filter(b => b.status === 'want').length
+        };
+    } catch (error) {
+        console.error('Ошибка получения статистики книг:', error);
+        return { total: 0, read: 0, reading: 0, want: 0 };
+    }
+}
+
+// ==============================================
+// ДРУЗЬЯ
 // ==============================================
 async function loadAllUsers() {
     if (!currentUser) return;
@@ -841,7 +888,6 @@ async function searchFriends() {
     showNotification('Поиск пользователей...', 'info');
     
     try {
-        // Ищем пользователей в Firestore по никнейму
         const snapshot = await db.collection('users')
             .where('username', '>=', searchTerm)
             .where('username', '<=', searchTerm + '\uf8ff')
@@ -863,7 +909,28 @@ async function searchFriends() {
         });
         
         console.log(`🔍 Найдено ${results.length} пользователей по запросу: ${searchTerm}`);
-        displaySearchResults(results);
+        
+        const searchResultsElement = document.getElementById('searchResults');
+        if (!searchResultsElement) return;
+        
+        if (results.length === 0) {
+            searchResultsElement.innerHTML = '<p class="empty">Пользователи не найдены</p>';
+            return;
+        }
+        
+        // Для каждого пользователя получаем клубы и статистику
+        const usersWithDetails = await Promise.all(results.map(async (user) => {
+            const clubs = await getUserClubs(user.id);
+            const booksStats = await getUserBooksStats(user.id);
+            
+            return {
+                ...user,
+                clubs: clubs,
+                booksStats: booksStats
+            };
+        }));
+        
+        displaySearchResults(usersWithDetails);
         
     } catch (error) {
         console.error('Ошибка поиска пользователей:', error);
@@ -878,16 +945,19 @@ function displaySearchResults(users) {
         return;
     }
     
-    if (users.length === 0) {
-        searchResults.innerHTML = '<p class="empty">Пользователи не найдены</p>';
-        return;
-    }
-    
     searchResults.innerHTML = users.map(user => {
         const isFriend = friends.some(f => f.id === user.id);
         const hasPendingRequest = friendRequests.some(r => 
             r.senderId === user.id && r.receiverId === currentUser.id
         );
+        
+        const clubsHtml = user.clubs && user.clubs.length > 0 
+            ? user.clubs.map(club => `
+                <span class="clubs-badge">
+                    <i class="fas fa-users"></i> ${club.name}
+                </span>
+            `).join('')
+            : '<div class="no-data"><i class="fas fa-users"></i><br>Не состоит в клубах</div>';
         
         let buttonHtml = '';
         
@@ -898,7 +968,7 @@ function displaySearchResults(users) {
         } else {
             buttonHtml = `
                 <button class="btn btn-primary btn-small send-friend-request" data-user-id="${user.id}">
-                    Добавить в друзья
+                    <i class="fas fa-user-plus"></i> Добавить в друзья
                 </button>
             `;
         }
@@ -911,14 +981,39 @@ function displaySearchResults(users) {
                     </div>
                     <div>
                         <h4>${user.username}</h4>
-                        <p class="friend-meta">Книг на полке: ${user.books ? user.books.length : 0}</p>
-                        <p class="friend-meta">В клубах: ${user.clubs ? user.clubs.length : 0}</p>
+                        <p class="friend-meta">
+                            <i class="far fa-calendar"></i>
+                            Зарегистрирован: ${new Date(user.createdAt).toLocaleDateString('ru-RU')}
+                        </p>
                     </div>
                 </div>
+                
+                <div class="friend-stats">
+                    <div class="stat-item">
+                        <div class="stat-value">${user.booksStats?.total || 0}</div>
+                        <div class="stat-label">Книг</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">${user.clubs?.length || 0}</div>
+                        <div class="stat-label">Клубов</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">${user.friends?.length || 0}</div>
+                        <div class="stat-label">Друзей</div>
+                    </div>
+                </div>
+                
+                <div class="friend-details">
+                    <p class="friend-meta"><strong>Участвует в клубах:</strong></p>
+                    <div class="user-clubs">
+                        ${clubsHtml}
+                    </div>
+                </div>
+                
                 <div class="friend-actions">
                     ${buttonHtml}
                     <button class="btn btn-outline btn-small view-user-books" data-user-id="${user.id}">
-                        Книги
+                        <i class="fas fa-book"></i> Посмотреть книги
                     </button>
                 </div>
             </div>
@@ -951,7 +1046,6 @@ async function showUserBooks(userId) {
         
         const userData = userDoc.data();
         
-        // Получаем книги пользователя
         const snapshot = await db.collection('books')
             .where('userId', '==', userId)
             .get();
@@ -969,22 +1063,23 @@ async function showUserBooks(userId) {
             });
         });
         
-        // Создаем модальное окно с книгами
         const modal = document.createElement('div');
         modal.className = 'modal';
         modal.style.display = 'flex';
+        modal.id = 'userBooksModal';
         
         modal.innerHTML = `
             <div class="modal-content">
                 <span class="close">&times;</span>
                 <h2><i class="fas fa-book"></i> Книги пользователя ${userData.username}</h2>
-                <div class="books-grid" style="max-height: 400px; overflow-y: auto; margin-top: 20px;">
+                <div class="user-books-grid">
                     ${books.map(book => `
                         <div class="book-card">
                             <h4>${book.title}</h4>
                             <p class="book-meta"><strong>Автор:</strong> ${book.author}</p>
                             <p class="book-meta"><strong>Жанр:</strong> ${book.genre}</p>
                             <p class="book-meta"><strong>Статус:</strong> ${getStatusText(book.status)}</p>
+                            ${book.rating ? `<p class="book-meta"><strong>Оценка:</strong> ${'★'.repeat(book.rating)}${'☆'.repeat(5 - book.rating)}</p>` : ''}
                             ${book.review ? `<p class="review"><strong>Рецензия:</strong> "${book.review}"</p>` : ''}
                         </div>
                     `).join('')}
@@ -1025,7 +1120,6 @@ async function sendFriendRequest(friendId) {
     try {
         console.log(`📨 Отправка запроса в друзья пользователю: ${friendId}`);
         
-        // Проверяем, не отправили ли уже запрос
         const existingRequest = await db.collection('friendRequests')
             .where('senderId', '==', currentUser.id)
             .where('receiverId', '==', friendId)
@@ -1038,7 +1132,6 @@ async function sendFriendRequest(friendId) {
             return;
         }
         
-        // Проверяем, не друзья ли уже
         const userDoc = await db.collection('users').doc(currentUser.id).get();
         const userData = userDoc.data();
         if (userData.friends && userData.friends.includes(friendId)) {
@@ -1058,10 +1151,8 @@ async function sendFriendRequest(friendId) {
         
         showNotification('Запрос в друзья отправлен', 'success');
         
-        // Обновляем список запросов
         await loadFriendRequests();
         
-        // Обновляем поиск, чтобы показать измененный статус
         const searchInput = document.getElementById('friendSearch');
         if (searchInput && searchInput.value.trim()) {
             await searchFriends();
@@ -1088,11 +1179,17 @@ async function loadFriends() {
             const friendDoc = await db.collection('users').doc(friendId).get();
             if (friendDoc.exists) {
                 const friendData = friendDoc.data();
+                
+                // Получаем клубы и статистику книг для каждого друга
+                const clubs = await getUserClubs(friendId);
+                const booksStats = await getUserBooksStats(friendId);
+                
                 friends.push({
                     id: friendDoc.id,
                     username: friendData.username,
                     books: friendData.books || [],
-                    clubs: friendData.clubs || [],
+                    clubs: clubs,
+                    booksStats: booksStats,
                     createdAt: friendData.createdAt || new Date().toISOString()
                 });
             }
@@ -1114,13 +1211,11 @@ async function loadFriendRequests() {
     try {
         console.log("📨 Загрузка запросов в друзья...");
         
-        // Загружаем входящие запросы
         const incomingSnapshot = await db.collection('friendRequests')
             .where('receiverId', '==', currentUser.id)
             .where('status', '==', 'pending')
             .get();
         
-        // Загружаем исходящие запросы
         const outgoingSnapshot = await db.collection('friendRequests')
             .where('senderId', '==', currentUser.id)
             .where('status', '==', 'pending')
@@ -1136,7 +1231,6 @@ async function loadFriendRequests() {
             });
         });
         
-        // Добавляем исходящие запросы для проверки статуса
         outgoingSnapshot.forEach(doc => {
             friendRequests.push({
                 id: doc.id,
@@ -1170,28 +1264,63 @@ function updateFriendsDisplay() {
         return;
     }
     
-    friendsList.innerHTML = friends.map(friend => `
-        <div class="friend-item">
-            <div class="friend-info">
-                <div class="user-avatar">
-                    <i class="fas fa-user-circle"></i>
+    friendsList.innerHTML = friends.map(friend => {
+        const clubsHtml = friend.clubs && friend.clubs.length > 0 
+            ? friend.clubs.map(club => `
+                <span class="clubs-badge">
+                    <i class="fas fa-users"></i> ${club.name}
+                </span>
+            `).join('')
+            : '<div class="no-data"><i class="fas fa-users"></i><br>Не состоит в клубах</div>';
+        
+        return `
+            <div class="friend-item">
+                <div class="friend-info">
+                    <div class="user-avatar">
+                        <i class="fas fa-user-circle"></i>
+                    </div>
+                    <div>
+                        <h4>${friend.username}</h4>
+                        <p class="friend-meta">
+                            <i class="far fa-calendar"></i>
+                            Зарегистрирован: ${new Date(friend.createdAt).toLocaleDateString('ru-RU')}
+                        </p>
+                    </div>
                 </div>
-                <div>
-                    <h4>${friend.username}</h4>
-                    <p class="friend-meta">Книг: ${friend.books ? friend.books.length : 0}</p>
-                    <p class="friend-meta">В клубах: ${friend.clubs ? friend.clubs.length : 0}</p>
+                
+                <div class="friend-stats">
+                    <div class="stat-item">
+                        <div class="stat-value">${friend.booksStats?.total || 0}</div>
+                        <div class="stat-label">Книг</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">${friend.clubs?.length || 0}</div>
+                        <div class="stat-label">Клубов</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">${friend.friends?.length || 0}</div>
+                        <div class="stat-label">Друзей</div>
+                    </div>
+                </div>
+                
+                <div class="friend-details">
+                    <p class="friend-meta"><strong>Участвует в клубах:</strong></p>
+                    <div class="user-clubs">
+                        ${clubsHtml}
+                    </div>
+                </div>
+                
+                <div class="friend-actions">
+                    <button class="btn btn-outline btn-small view-friend-books" data-user-id="${friend.id}">
+                        <i class="fas fa-book"></i> Книги
+                    </button>
+                    <button class="btn btn-outline btn-small remove-friend" data-user-id="${friend.id}">
+                        <i class="fas fa-user-times"></i> Удалить
+                    </button>
                 </div>
             </div>
-            <div class="friend-actions">
-                <button class="btn btn-outline btn-small view-friend-books" data-user-id="${friend.id}">
-                    Книги
-                </button>
-                <button class="btn btn-outline btn-small remove-friend" data-user-id="${friend.id}">
-                    Удалить
-                </button>
-            </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
     
     if (friendsCount) friendsCount.textContent = friends.length;
     
@@ -1219,7 +1348,6 @@ function updateRequestsDisplay() {
         return;
     }
     
-    // Фильтруем только входящие запросы
     const incomingRequests = friendRequests.filter(r => r.type === 'incoming');
     
     if (incomingRequests.length === 0) {
@@ -1281,12 +1409,10 @@ async function handleFriendRequest(requestId, senderId, action) {
         }
         
         if (action === 'accept') {
-            // Обновляем статус запроса
             await db.collection('friendRequests').doc(requestId).update({
                 status: 'accepted'
             });
             
-            // Добавляем друг другу в списки друзей
             await db.collection('users').doc(currentUser.id).update({
                 friends: firebase.firestore.FieldValue.arrayUnion(senderId)
             });
@@ -1297,7 +1423,6 @@ async function handleFriendRequest(requestId, senderId, action) {
             
             showNotification('Заявка принята! Теперь вы друзья.', 'success');
         } else {
-            // Отклоняем запрос
             await db.collection('friendRequests').doc(requestId).update({
                 status: 'declined'
             });
@@ -1305,11 +1430,9 @@ async function handleFriendRequest(requestId, senderId, action) {
             showNotification('Заявка отклонена', 'info');
         }
         
-        // Обновляем данные
         await loadFriends();
         await loadFriendRequests();
         
-        // Обновляем поиск, если он активен
         const searchInput = document.getElementById('friendSearch');
         if (searchInput && searchInput.value.trim()) {
             await searchFriends();
@@ -1329,17 +1452,14 @@ async function removeFriend(friendId) {
     try {
         console.log(`🗑️ Удаление друга: ${friendId}`);
         
-        // Удаляем из списка друзей текущего пользователя
         await db.collection('users').doc(currentUser.id).update({
             friends: firebase.firestore.FieldValue.arrayRemove(friendId)
         });
         
-        // Удаляем из списка друзей другого пользователя
         await db.collection('users').doc(friendId).update({
             friends: firebase.firestore.FieldValue.arrayRemove(currentUser.id)
         });
         
-        // Находим и удаляем запись о дружбе из коллекции friendRequests
         const snapshot = await db.collection('friendRequests')
             .where('senderId', 'in', [currentUser.id, friendId])
             .where('receiverId', 'in', [currentUser.id, friendId])
@@ -1355,7 +1475,6 @@ async function removeFriend(friendId) {
         
         await loadFriends();
         
-        // Обновляем поиск, если он активен
         const searchInput = document.getElementById('friendSearch');
         if (searchInput && searchInput.value.trim()) {
             await searchFriends();
@@ -1520,7 +1639,6 @@ async function init() {
     console.log("🚀 Запуск приложения BookShelf");
     
     try {
-        // Создаем демо-пользователя при первом запуске
         await initDemoData();
         
         const sessionData = restoreSession();
