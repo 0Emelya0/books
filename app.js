@@ -13,7 +13,6 @@ const firebaseConfig = {
 
 // Инициализация Firebase (версия 8)
 try {
-    // Проверяем, не инициализирован ли Firebase уже
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
         console.log("✅ Firebase инициализирован");
@@ -41,7 +40,6 @@ let friendRequests = [];
 // УТИЛИТЫ
 // ==============================================
 function showNotification(message, type = 'info') {
-    // Удаляем старые уведомления
     const oldNotifications = document.querySelectorAll('.notification');
     oldNotifications.forEach(n => n.remove());
     
@@ -80,6 +78,23 @@ function showNotification(message, type = 'info') {
     }, 3000);
 }
 
+// Стили для анимации
+if (!document.querySelector('#notification-styles')) {
+    const style = document.createElement('style');
+    style.id = 'notification-styles';
+    style.textContent = `
+        @keyframes slideIn {
+            from { transform: translateX(100%) translateY(-20px); opacity: 0; }
+            to { transform: translateX(0) translateY(0); opacity: 1; }
+        }
+        @keyframes slideOut {
+            from { transform: translateX(0) translateY(0); opacity: 1; }
+            to { transform: translateX(100%) translateY(-20px); opacity: 0; }
+        }
+    `;
+    document.head.appendChild(style);
+}
+
 // Сохранение и восстановление состояния
 function saveSession() {
     if (currentUser) {
@@ -98,7 +113,6 @@ function restoreSession() {
     if (sessionData) {
         try {
             const data = JSON.parse(sessionData);
-            // Проверяем, не устарела ли сессия (24 часа)
             if (Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
                 console.log("🔄 Обнаружена сохраненная сессия для:", data.username);
                 return data;
@@ -117,14 +131,12 @@ function restoreSession() {
 function switchPage(pageId) {
     console.log(`📄 Переход на: ${pageId}`);
     
-    // Скрыть все страницы
     const pages = document.querySelectorAll('.page');
     pages.forEach(page => {
         page.classList.remove('active');
         page.style.display = 'none';
     });
     
-    // Показать выбранную страницу
     const page = document.getElementById(pageId + 'Page');
     if (page) {
         page.style.display = 'block';
@@ -134,7 +146,6 @@ function switchPage(pageId) {
         document.body.className = `${pageId}-page`;
     }
     
-    // Обновить навигацию
     document.querySelectorAll('.nav-link').forEach(link => {
         link.classList.remove('active');
         if (link.dataset.page === pageId) {
@@ -142,7 +153,6 @@ function switchPage(pageId) {
         }
     });
     
-    // Загрузить данные для страницы
     if (currentUser) {
         switch(pageId) {
             case 'shelf':
@@ -238,12 +248,10 @@ async function loginUser(username, password) {
             userId = doc.id;
         });
         
-        // Проверяем пароль
         if (userData.password !== password) {
             throw new Error('Неверный пароль');
         }
         
-        // Создаем объект пользователя
         currentUser = {
             id: userId,
             username: userData.username,
@@ -257,18 +265,11 @@ async function loginUser(username, password) {
         
         console.log("👤 Пользователь загружен:", currentUser.username);
         
-        // Сохраняем сессию
         saveSession();
-        
-        // Обновляем интерфейс
         updateUI();
         hideAuthModal();
-        
-        // Загружаем данные пользователя
         await loadUserData();
-        
         switchPage('shelf');
-        
         showNotification(`Добро пожаловать, ${username}!`, 'success');
         
     } catch (error) {
@@ -283,18 +284,10 @@ async function loadUserData() {
     console.log("📊 Загрузка данных пользователя...");
     
     try {
-        // Загружаем книги
         await loadBooks();
-        
-        // Загружаем друзей
         await loadFriends();
-        
-        // Загружаем запросы в друзья
         await loadFriendRequests();
-        
-        // Загружаем клубы
         await loadMyClubs();
-        
     } catch (error) {
         console.error('Ошибка загрузки данных пользователя:', error);
     }
@@ -304,7 +297,6 @@ async function registerUser(username, password) {
     try {
         console.log(`📝 Регистрация нового пользователя: ${username}`);
         
-        // Проверяем существование пользователя
         const usersRef = db.collection('users');
         const snapshot = await usersRef
             .where('username', '==', username)
@@ -315,7 +307,6 @@ async function registerUser(username, password) {
             throw new Error('Пользователь уже существует');
         }
         
-        // Создаем нового пользователя
         const userData = {
             username: username,
             password: password,
@@ -335,14 +326,10 @@ async function registerUser(username, password) {
         
         console.log("✅ Пользователь зарегистрирован:", currentUser.username);
         
-        // Сохраняем сессию
         saveSession();
-        
-        // Обновляем интерфейс
         updateUI();
         hideAuthModal();
         switchPage('shelf');
-        
         showNotification('Регистрация успешна!', 'success');
         
     } catch (error) {
@@ -360,10 +347,8 @@ function logout() {
     friendRequests = [];
     allUsers = [];
     
-    // Удаляем сессию
     localStorage.removeItem('bookShelfSession');
     
-    // Обновляем интерфейс
     document.querySelector('.auth-buttons').style.display = 'flex';
     document.querySelector('.user-menu').style.display = 'none';
     
@@ -459,34 +444,26 @@ async function addBook() {
         
         console.log("📚 Добавление книги:", bookData);
         
-        // Добавляем книгу в Firestore
         const docRef = await db.collection('books').add(bookData);
         const bookId = docRef.id;
         
-        // Добавляем ID книги пользователю
         await db.collection('users').doc(currentUser.id).update({
             books: firebase.firestore.FieldValue.arrayUnion(bookId)
         });
         
-        // Добавляем книгу в локальный массив
         userBooks.unshift({
             id: bookId,
             ...bookData
         });
         
-        // Очищаем форму
         document.getElementById('bookTitle').value = '';
         document.getElementById('bookAuthor').value = '';
         document.getElementById('bookReview').value = '';
         setRating(0);
         
-        // Обновляем отображение
         updateBooksDisplay();
         updateBookCounts();
-        
-        // Сохраняем изменения
         saveSession();
-        
         showNotification('Книга добавлена на полку!', 'success');
         
     } catch (error) {
@@ -504,7 +481,6 @@ async function loadBooks() {
     }
     
     try {
-        // Загружаем книги из Firestore
         const snapshot = await db.collection('books')
             .where('userId', '==', currentUser.id)
             .get();
@@ -518,12 +494,10 @@ async function loadBooks() {
             });
         });
         
-        // Сортируем по дате (новые сначала)
         userBooks.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         
         console.log(`📚 Загружено ${userBooks.length} книг из Firestore`);
         
-        // Обновляем отображение
         updateBooksDisplay();
         updateBookCounts();
         
@@ -550,9 +524,8 @@ function updateBooksDisplay() {
     
     console.log(`📚 Отображение ${userBooks.length} книг`);
     
-    // Фильтруем по активной вкладке
     const activeTab = document.querySelector('.tab.active');
-    let status = 'read'; // значение по умолчанию
+    let status = 'read';
     if (activeTab && activeTab.dataset.status) {
         status = activeTab.dataset.status;
     }
@@ -597,7 +570,6 @@ function updateBookCounts() {
     if (!currentUser || !userBooks || userBooks.length === 0) {
         console.log("📊 Нет данных для статистики книг");
         
-        // Устанавливаем нулевые значения
         const bookCount = document.getElementById('bookCount');
         const readCount = document.getElementById('readCount');
         const readingCount = document.getElementById('readingCount');
@@ -688,7 +660,6 @@ async function loadClubs() {
             });
         });
         
-        // Сортируем по дате создания
         clubs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         
         updateClubsDisplay(clubs);
@@ -795,7 +766,6 @@ async function joinClub(clubId) {
         const isMember = clubData.members && clubData.members.includes(currentUser.id);
         
         if (isMember) {
-            // Выходим из клуба
             await db.collection('clubs').doc(clubId).update({
                 members: firebase.firestore.FieldValue.arrayRemove(currentUser.id),
                 membersCount: firebase.firestore.FieldValue.increment(-1)
@@ -803,7 +773,6 @@ async function joinClub(clubId) {
             
             showNotification('Вы вышли из клуба', 'info');
         } else {
-            // Вступаем в клуб
             await db.collection('clubs').doc(clubId).update({
                 members: firebase.firestore.FieldValue.arrayUnion(currentUser.id),
                 membersCount: firebase.firestore.FieldValue.increment(1)
@@ -822,12 +791,14 @@ async function joinClub(clubId) {
 }
 
 // ==============================================
-// ДРУЗЬЯ
+// ДРУЗЬЯ (ИСПРАВЛЕННЫЕ ФУНКЦИИ)
 // ==============================================
 async function loadAllUsers() {
     if (!currentUser) return;
     
     try {
+        console.log("👥 Загрузка всех пользователей...");
+        
         const snapshot = await db.collection('users').get();
         
         allUsers = [];
@@ -836,15 +807,20 @@ async function loadAllUsers() {
             if (doc.id !== currentUser.id) {
                 allUsers.push({
                     id: doc.id,
-                    ...userData
+                    username: userData.username,
+                    books: userData.books || [],
+                    clubs: userData.clubs || [],
+                    friends: userData.friends || [],
+                    createdAt: userData.createdAt || new Date().toISOString()
                 });
             }
         });
         
-        console.log(`👥 Загружено ${allUsers.length} пользователей для поиска`);
+        console.log(`✅ Загружено ${allUsers.length} пользователей для поиска`);
         
     } catch (error) {
-        console.error('Ошибка загрузки пользователей:', error);
+        console.error('❌ Ошибка загрузки пользователей:', error);
+        showNotification('Ошибка загрузки пользователей', 'error');
     }
 }
 
@@ -862,6 +838,7 @@ async function searchFriends() {
         return;
     }
     
+    // Если пользователи еще не загружены, загружаем их
     if (allUsers.length === 0) {
         await loadAllUsers();
     }
@@ -888,7 +865,7 @@ function displaySearchResults(users) {
     searchResults.innerHTML = users.map(user => {
         const isFriend = friends.some(f => f.id === user.id);
         const hasPendingRequest = friendRequests.some(r => 
-            r.senderId === user.id
+            r.senderId === user.id && r.receiverId === currentUser.id
         );
         
         let buttonHtml = '';
@@ -906,20 +883,20 @@ function displaySearchResults(users) {
         }
         
         return `
-            <div class="friend-item">
-                <div class="friend-info">
-                    <div class="user-avatar">
+            <div class="friend-item" style="background: rgba(255, 255, 255, 0.92); padding: 20px; border-radius: 16px; margin-bottom: 15px; box-shadow: 0 4px 16px rgba(31, 38, 135, 0.08);">
+                <div class="friend-info" style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
+                    <div class="user-avatar" style="width: 50px; height: 50px; background: linear-gradient(135deg, #8a9eff 0%, #a991f7 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px;">
                         <i class="fas fa-user-circle"></i>
                     </div>
                     <div>
-                        <h4>${user.username}</h4>
-                        <p>Книг на полке: ${user.books ? user.books.length : 0}</p>
-                        <p>В клубах: ${user.clubs ? user.clubs.length : 0}</p>
+                        <h4 style="color: #2c3e50; margin-bottom: 5px;">${user.username}</h4>
+                        <p style="color: #5a6c8c; font-size: 14px; margin: 3px 0;">Книг на полке: ${user.books ? user.books.length : 0}</p>
+                        <p style="color: #5a6c8c; font-size: 14px; margin: 3px 0;">В клубах: ${user.clubs ? user.clubs.length : 0}</p>
                     </div>
                 </div>
-                <div class="friend-actions">
+                <div class="friend-actions" style="display: flex; gap: 10px;">
                     ${buttonHtml}
-                    <button class="btn btn-outline btn-small view-profile" data-user-id="${user.id}">
+                    <button class="btn btn-outline btn-small view-profile" data-user-id="${user.id}" style="padding: 8px 15px; font-size: 14px;">
                         Профиль
                     </button>
                 </div>
@@ -927,6 +904,7 @@ function displaySearchResults(users) {
         `;
     }).join('');
     
+    // Добавляем обработчики событий
     document.querySelectorAll('.send-friend-request').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             const userId = e.target.dataset.userId;
@@ -958,6 +936,12 @@ async function showUserProfile(userId) {
             .get();
         const booksCount = booksSnapshot.size;
         
+        // Получаем клубы пользователя
+        const clubsSnapshot = await db.collection('clubs')
+            .where('members', 'array-contains', userId)
+            .get();
+        const clubsCount = clubsSnapshot.size;
+        
         const profileModal = document.createElement('div');
         profileModal.className = 'modal';
         profileModal.style.cssText = `
@@ -986,10 +970,12 @@ async function showUserProfile(userId) {
                 overflow-y: auto;
             ">
                 <span class="close-profile" style="
-                    float: right;
-                    font-size: 24px;
+                    position: absolute;
+                    right: 20px;
+                    top: 20px;
+                    font-size: 1.8rem;
                     cursor: pointer;
-                    color: #8a9eff;
+                    color: #6b7b9c;
                     transition: all 0.3s;
                     width: 40px;
                     height: 40px;
@@ -997,13 +983,17 @@ async function showUserProfile(userId) {
                     align-items: center;
                     justify-content: center;
                     border-radius: 12px;
-                    background: rgba(138, 158, 255, 0.1);
+                    background: rgba(255, 255, 255, 0.9);
+                    backdrop-filter: blur(10px);
+                    -webkit-backdrop-filter: blur(10px);
+                    border: 1px solid #e8edf5;
+                    z-index: 10;
                 ">&times;</span>
                 <h2 style="color: #2c3e50; margin-bottom: 24px; font-size: 28px;">
                     <i class="fas fa-user" style="background: linear-gradient(135deg, #8a9eff 0%, #a991f7 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;"></i> Профиль пользователя
                 </h2>
                 
-                <div class="profile-header" style="display: flex; align-items: center; gap: 24px; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 2px solid #e8edf5;">
+                <div class="profile-header" style="display: flex; align-items: center; gap: 24px; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 2px solid #e8edf5; position: relative;">
                     <div class="profile-avatar" style="width: 90px; height: 90px; border-radius: 50%; background: linear-gradient(135deg, #8a9eff 0%, #a991f7 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 3rem; box-shadow: 0 8px 32px rgba(31, 38, 135, 0.12); border: 3px solid white;">
                         <i class="fas fa-user-circle"></i>
                     </div>
@@ -1016,24 +1006,24 @@ async function showUserProfile(userId) {
                 </div>
                 
                 <div class="profile-stats" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px;">
-                    <div class="stat-item" style="background: rgba(255, 255, 255, 0.9); padding: 20px; border-radius: 16px; text-align: center; border: 2px solid #e8edf5; transition: all 0.3s;">
-                        <i class="fas fa-book" style="font-size: 2.2rem; color: #8a9eff; margin-bottom: 12px; display: block;"></i>
+                    <div class="stat-item" style="background: rgba(255, 255, 255, 0.9); padding: 20px; border-radius: 16px; text-align: center; border: 2px solid #e8edf5; transition: all 0.3s; position: relative; overflow: hidden; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);">
+                        <i class="fas fa-book" style="font-size: 2.2rem; color: #8a9eff; margin-bottom: 12px; display: block; transition: transform 0.3s;"></i>
                         <div>
                             <h4 style="font-size: 1.6rem; color: #2c3e50; margin-bottom: 6px; font-weight: 700;">${booksCount}</h4>
                             <p style="color: #5a6c8c; font-size: 0.9rem; font-weight: 500;">Книг на полке</p>
                         </div>
                     </div>
-                    <div class="stat-item" style="background: rgba(255, 255, 255, 0.9); padding: 20px; border-radius: 16px; text-align: center; border: 2px solid #e8edf5; transition: all 0.3s;">
-                        <i class="fas fa-users" style="font-size: 2.2rem; color: #8a9eff; margin-bottom: 12px; display: block;"></i>
+                    <div class="stat-item" style="background: rgba(255, 255, 255, 0.9); padding: 20px; border-radius: 16px; text-align: center; border: 2px solid #e8edf5; transition: all 0.3s; position: relative; overflow: hidden; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);">
+                        <i class="fas fa-users" style="font-size: 2.2rem; color: #8a9eff; margin-bottom: 12px; display: block; transition: transform 0.3s;"></i>
                         <div>
                             <h4 style="font-size: 1.6rem; color: #2c3e50; margin-bottom: 6px; font-weight: 700;">${userData.friends ? userData.friends.length : 0}</h4>
                             <p style="color: #5a6c8c; font-size: 0.9rem; font-weight: 500;">Друзей</p>
                         </div>
                     </div>
-                    <div class="stat-item" style="background: rgba(255, 255, 255, 0.9); padding: 20px; border-radius: 16px; text-align: center; border: 2px solid #e8edf5; transition: all 0.3s;">
-                        <i class="fas fa-users" style="font-size: 2.2rem; color: #8a9eff; margin-bottom: 12px; display: block;"></i>
+                    <div class="stat-item" style="background: rgba(255, 255, 255, 0.9); padding: 20px; border-radius: 16px; text-align: center; border: 2px solid #e8edf5; transition: all 0.3s; position: relative; overflow: hidden; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);">
+                        <i class="fas fa-users" style="font-size: 2.2rem; color: #8a9eff; margin-bottom: 12px; display: block; transition: transform 0.3s;"></i>
                         <div>
-                            <h4 style="font-size: 1.6rem; color: #2c3e50; margin-bottom: 6px; font-weight: 700;">${userData.clubs ? userData.clubs.length : 0}</h4>
+                            <h4 style="font-size: 1.6rem; color: #2c3e50; margin-bottom: 6px; font-weight: 700;">${clubsCount}</h4>
                             <p style="color: #5a6c8c; font-size: 0.9rem; font-weight: 500;">Клубов</p>
                         </div>
                     </div>
@@ -1087,6 +1077,8 @@ async function sendFriendRequest(friendId) {
     if (!currentUser) return;
     
     try {
+        console.log(`📨 Отправка запроса в друзья пользователю: ${friendId}`);
+        
         // Проверяем, не отправили ли уже запрос
         const existingRequest = await db.collection('friends')
             .where('senderId', '==', currentUser.id)
@@ -1120,7 +1112,14 @@ async function sendFriendRequest(friendId) {
         
         showNotification('Запрос в друзья отправлен', 'success');
         
+        // Обновляем список запросов
         await loadFriendRequests();
+        
+        // Обновляем поиск, чтобы показать измененный статус
+        const searchInput = document.getElementById('friendSearch');
+        if (searchInput && searchInput.value.trim()) {
+            await searchFriends();
+        }
         
     } catch (error) {
         console.error('Ошибка отправки запроса:', error);
@@ -1132,6 +1131,8 @@ async function loadFriends() {
     if (!currentUser) return;
     
     try {
+        console.log("👥 Загрузка списка друзей...");
+        
         const userDoc = await db.collection('users').doc(currentUser.id).get();
         const userData = userDoc.data();
         const friendIds = userData?.friends || [];
@@ -1143,17 +1144,21 @@ async function loadFriends() {
                 const friendData = friendDoc.data();
                 friends.push({
                     id: friendDoc.id,
-                    ...friendData
+                    username: friendData.username,
+                    books: friendData.books || [],
+                    clubs: friendData.clubs || [],
+                    createdAt: friendData.createdAt || new Date().toISOString()
                 });
             }
         }
         
-        console.log(`👥 Загружено ${friends.length} друзей`);
+        console.log(`✅ Загружено ${friends.length} друзей`);
         
         updateFriendsDisplay();
         
     } catch (error) {
-        console.error('Ошибка загрузки друзей:', error);
+        console.error('❌ Ошибка загрузки друзей:', error);
+        showNotification('Ошибка загрузки друзей', 'error');
     }
 }
 
@@ -1161,6 +1166,8 @@ async function loadFriendRequests() {
     if (!currentUser) return;
     
     try {
+        console.log("📨 Загрузка запросов в друзья...");
+        
         const snapshot = await db.collection('friends')
             .where('receiverId', '==', currentUser.id)
             .where('status', '==', 'pending')
@@ -1174,12 +1181,13 @@ async function loadFriendRequests() {
             });
         });
         
-        console.log(`📨 Загружено ${friendRequests.length} запросов`);
+        console.log(`✅ Загружено ${friendRequests.length} запросов`);
         
         updateRequestsDisplay();
         
     } catch (error) {
-        console.error('Ошибка загрузки запросов:', error);
+        console.error('❌ Ошибка загрузки запросов:', error);
+        showNotification('Ошибка загрузки запросов', 'error');
     }
 }
 
@@ -1199,22 +1207,22 @@ function updateFriendsDisplay() {
     }
     
     friendsList.innerHTML = friends.map(friend => `
-        <div class="friend-item">
-            <div class="friend-info">
-                <div class="user-avatar">
+        <div class="friend-item" style="background: rgba(255, 255, 255, 0.92); padding: 20px; border-radius: 16px; margin-bottom: 15px; box-shadow: 0 4px 16px rgba(31, 38, 135, 0.08);">
+            <div class="friend-info" style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
+                <div class="user-avatar" style="width: 50px; height: 50px; background: linear-gradient(135deg, #8a9eff 0%, #a991f7 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px;">
                     <i class="fas fa-user-circle"></i>
                 </div>
                 <div>
-                    <h4>${friend.username}</h4>
-                    <p>Книг: ${friend.books ? friend.books.length : 0}</p>
-                    <p>В клубах: ${friend.clubs ? friend.clubs.length : 0}</p>
+                    <h4 style="color: #2c3e50; margin-bottom: 5px;">${friend.username}</h4>
+                    <p style="color: #5a6c8c; font-size: 14px; margin: 3px 0;">Книг: ${friend.books ? friend.books.length : 0}</p>
+                    <p style="color: #5a6c8c; font-size: 14px; margin: 3px 0;">В клубах: ${friend.clubs ? friend.clubs.length : 0}</p>
                 </div>
             </div>
-            <div class="friend-actions">
-                <button class="btn btn-outline btn-small view-friend-profile" data-user-id="${friend.id}">
+            <div class="friend-actions" style="display: flex; gap: 10px;">
+                <button class="btn btn-outline btn-small view-friend-profile" data-user-id="${friend.id}" style="padding: 8px 15px; font-size: 14px;">
                     Профиль
                 </button>
-                <button class="btn btn-outline btn-small remove-friend" data-user-id="${friend.id}">
+                <button class="btn btn-outline btn-small remove-friend" data-user-id="${friend.id}" style="padding: 8px 15px; font-size: 14px;">
                     Удалить
                 </button>
             </div>
@@ -1254,22 +1262,22 @@ function updateRequestsDisplay() {
     }
     
     requestsList.innerHTML = friendRequests.map(request => `
-        <div class="request-item">
-            <div class="friend-info">
-                <div class="user-avatar">
+        <div class="request-item" style="background: rgba(255, 255, 255, 0.92); padding: 20px; border-radius: 16px; margin-bottom: 15px; box-shadow: 0 4px 16px rgba(31, 38, 135, 0.08);">
+            <div class="friend-info" style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
+                <div class="user-avatar" style="width: 50px; height: 50px; background: linear-gradient(135deg, #8a9eff 0%, #a991f7 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px;">
                     <i class="fas fa-user-circle"></i>
                 </div>
                 <div>
-                    <h4>${request.senderName}</h4>
-                    <p>Хочет добавить вас в друзья</p>
-                    <small>${request.createdAt ? new Date(request.createdAt).toLocaleDateString() : 'Недавно'}</small>
+                    <h4 style="color: #2c3e50; margin-bottom: 5px;">${request.senderName}</h4>
+                    <p style="color: #5a6c8c; font-size: 14px; margin: 3px 0;">Хочет добавить вас в друзья</p>
+                    <small style="color: #8a9eff; font-size: 12px;">${request.createdAt ? new Date(request.createdAt).toLocaleDateString() : 'Недавно'}</small>
                 </div>
             </div>
-            <div class="friend-actions">
-                <button class="btn btn-primary btn-small accept-request" data-request-id="${request.id}">
+            <div class="friend-actions" style="display: flex; gap: 10px;">
+                <button class="btn btn-primary btn-small accept-request" data-request-id="${request.id}" style="padding: 8px 15px; font-size: 14px;">
                     Принять
                 </button>
-                <button class="btn btn-outline btn-small decline-request" data-request-id="${request.id}">
+                <button class="btn btn-outline btn-small decline-request" data-request-id="${request.id}" style="padding: 8px 15px; font-size: 14px;">
                     Отклонить
                 </button>
             </div>
@@ -1291,6 +1299,8 @@ async function handleFriendRequest(requestId, action) {
     if (!currentUser) return;
     
     try {
+        console.log(`🔄 Обработка запроса в друзья: ${requestId}, действие: ${action}`);
+        
         const requestDoc = await db.collection('friends').doc(requestId).get();
         if (!requestDoc.exists) {
             throw new Error('Запрос не найден');
@@ -1327,6 +1337,12 @@ async function handleFriendRequest(requestId, action) {
         await loadFriends();
         await loadFriendRequests();
         
+        // Обновляем поиск, если он активен
+        const searchInput = document.getElementById('friendSearch');
+        if (searchInput && searchInput.value.trim()) {
+            await searchFriends();
+        }
+        
     } catch (error) {
         console.error('Ошибка обработки запроса:', error);
         showNotification('Ошибка обработки заявки', 'error');
@@ -1339,6 +1355,8 @@ async function removeFriend(friendId) {
     if (!currentUser) return;
     
     try {
+        console.log(`🗑️ Удаление друга: ${friendId}`);
+        
         // Удаляем из списка друзей текущего пользователя
         await db.collection('users').doc(currentUser.id).update({
             friends: firebase.firestore.FieldValue.arrayRemove(friendId)
@@ -1349,7 +1367,7 @@ async function removeFriend(friendId) {
             friends: firebase.firestore.FieldValue.arrayRemove(currentUser.id)
         });
         
-        // Обновляем или удаляем запись в коллекции friends
+        // Удаляем запись о дружбе из коллекции friends
         const snapshot = await db.collection('friends')
             .where('senderId', 'in', [currentUser.id, friendId])
             .where('receiverId', 'in', [currentUser.id, friendId])
@@ -1364,6 +1382,12 @@ async function removeFriend(friendId) {
         showNotification('Друг удален', 'info');
         
         await loadFriends();
+        
+        // Обновляем поиск, если он активен
+        const searchInput = document.getElementById('friendSearch');
+        if (searchInput && searchInput.value.trim()) {
+            await searchFriends();
+        }
         
     } catch (error) {
         console.error('Ошибка удаления друга:', error);
@@ -1451,9 +1475,13 @@ function setupEventListeners() {
     }
     
     // Мобильное меню
-    document.querySelector('.menu-toggle').addEventListener('click', function() {
-        document.querySelector('.nav-links').classList.toggle('active');
-    });
+    const menuToggle = document.querySelector('.menu-toggle');
+    if (menuToggle) {
+        menuToggle.addEventListener('click', function() {
+            const navLinks = document.querySelector('.nav-links');
+            if (navLinks) navLinks.classList.toggle('active');
+        });
+    }
     
     // Сохраняем сессию при закрытии страницы
     window.addEventListener('beforeunload', () => {
@@ -1470,7 +1498,6 @@ async function restoreUserSession(sessionData) {
     try {
         console.log("🔄 Восстановление сессии пользователя...");
         
-        // Получаем данные пользователя из Firestore
         const usersRef = db.collection('users');
         const snapshot = await usersRef
             .where('username', '==', sessionData.username)
@@ -1489,7 +1516,6 @@ async function restoreUserSession(sessionData) {
             userId = doc.id;
         });
         
-        // Создаем объект пользователя
         currentUser = {
             id: userId,
             username: userData.username,
@@ -1503,14 +1529,9 @@ async function restoreUserSession(sessionData) {
         
         console.log("✅ Сессия восстановлена для:", currentUser.username);
         
-        // Обновляем интерфейс
         updateUI();
-        
-        // Загружаем данные пользователя
         await loadUserData();
-        
         switchPage('shelf');
-        
         showNotification('Сессия восстановлена', 'info');
         
     } catch (error) {
@@ -1527,7 +1548,9 @@ async function init() {
     console.log("🚀 Запуск приложения BookShelf");
     
     try {
-        // Проверяем сохраненную сессию
+        // Создаем демо-пользователя при первом запуске
+        await initDemoData();
+        
         const sessionData = restoreSession();
         if (sessionData) {
             console.log("🔄 Обнаружена сохраненная сессия");
@@ -1537,14 +1560,41 @@ async function init() {
             switchPage('home');
         }
         
-        // Настраиваем обработчики событий
         setupEventListeners();
-        
         console.log("🎉 Приложение готово к работе!");
         
     } catch (error) {
         console.error('❌ Критическая ошибка инициализации:', error);
         showNotification('Ошибка запуска приложения: ' + error.message, 'error');
+    }
+}
+
+// ==============================================
+// ИНИЦИАЛИЗАЦИЯ ДЕМО-ДАННЫХ
+// ==============================================
+async function initDemoData() {
+    try {
+        const usersRef = db.collection('users');
+        const snapshot = await usersRef.where('username', '==', 'demo').limit(1).get();
+        
+        if (snapshot.empty) {
+            console.log("👤 Создаем демо-пользователя...");
+            
+            const demoUser = {
+                username: 'demo',
+                password: 'demo123',
+                createdAt: new Date().toISOString(),
+                books: [],
+                friends: [],
+                clubs: [],
+                friendRequests: []
+            };
+            
+            await usersRef.add(demoUser);
+            console.log("✅ Демо-пользователь создан: demo / demo123");
+        }
+    } catch (error) {
+        console.error('❌ Ошибка инициализации демо-данных:', error);
     }
 }
 
