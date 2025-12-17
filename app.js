@@ -705,7 +705,7 @@ function updateClubsDisplay(clubs) {
         const isMember = club.members && club.members.includes(currentUser.id);
         
         return `
-            <div class="club-card">
+            <div class="book-card">
                 <h4>${club.name}</h4>
                 <p class="book-meta"><strong>Жанр:</strong> ${club.genre}</p>
                 <p class="book-meta"><strong>Создатель:</strong> ${club.ownerName}</p>
@@ -739,7 +739,7 @@ function updateMyClubsDisplay(clubs) {
     }
     
     myClubsList.innerHTML = clubs.map(club => `
-        <div class="club-card">
+        <div class="book-card">
             <h4>${club.name}</h4>
             <p class="book-meta"><strong>Жанр:</strong> ${club.genre}</p>
             <p>${club.description}</p>
@@ -791,7 +791,7 @@ async function joinClub(clubId) {
 }
 
 // ==============================================
-// ДРУЗЬЯ (ИСПРАВЛЕННЫЙ ПОИСК И ПЛАШКА ПРОФИЛЯ)
+// ДРУЗЬЯ (ИСПРАВЛЕННЫЙ ПОИСК И ДОБАВЛЕНИЕ)
 // ==============================================
 async function loadAllUsers() {
     if (!currentUser) return;
@@ -917,8 +917,8 @@ function displaySearchResults(users) {
                 </div>
                 <div class="friend-actions">
                     ${buttonHtml}
-                    <button class="btn btn-outline btn-small view-profile" data-user-id="${user.id}">
-                        Профиль
+                    <button class="btn btn-outline btn-small view-user-books" data-user-id="${user.id}">
+                        Книги
                     </button>
                 </div>
             </div>
@@ -933,15 +933,15 @@ function displaySearchResults(users) {
         });
     });
     
-    document.querySelectorAll('.view-profile').forEach(btn => {
+    document.querySelectorAll('.view-user-books').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             const userId = e.target.dataset.userId;
-            await showUserProfile(userId);
+            await showUserBooks(userId);
         });
     });
 }
 
-async function showUserProfile(userId) {
+async function showUserBooks(userId) {
     try {
         const userDoc = await db.collection('users').doc(userId).get();
         if (!userDoc.exists) {
@@ -952,128 +952,70 @@ async function showUserProfile(userId) {
         const userData = userDoc.data();
         
         // Получаем книги пользователя
-        const booksSnapshot = await db.collection('books')
+        const snapshot = await db.collection('books')
             .where('userId', '==', userId)
             .get();
-        const booksCount = booksSnapshot.size;
         
-        // Получаем клубы пользователя
-        const clubsSnapshot = await db.collection('clubs')
-            .where('members', 'array-contains', userId)
-            .get();
-        const clubsCount = clubsSnapshot.size;
+        if (snapshot.empty) {
+            showNotification('У пользователя пока нет книг', 'info');
+            return;
+        }
         
-        // Получаем друзей пользователя
-        const friendsCount = userData.friends ? userData.friends.length : 0;
+        const books = [];
+        snapshot.forEach(doc => {
+            books.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
         
-        // Создаем HTML для плашки профиля
-        const profileHTML = `
-            <div class="profile-card">
-                <span class="close-profile">&times;</span>
-                
-                <div class="profile-header">
-                    <div class="profile-avatar">
-                        <i class="fas fa-user-circle"></i>
-                    </div>
-                    <div class="profile-info">
-                        <h3>${userData.username}</h3>
-                        <p>
-                            <i class="fas fa-calendar"></i>
-                            В BookShelf с: ${userData.createdAt ? new Date(userData.createdAt).toLocaleDateString() : 'Недавно'}
-                        </p>
-                    </div>
-                </div>
-                
-                <div class="profile-stats">
-                    <div class="stat-item">
-                        <i class="fas fa-book"></i>
-                        <div>
-                            <h4>${booksCount}</h4>
-                            <p>Книг на полке</p>
+        // Создаем модальное окно с книгами
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.style.display = 'flex';
+        
+        modal.innerHTML = `
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h2><i class="fas fa-book"></i> Книги пользователя ${userData.username}</h2>
+                <div class="books-grid" style="max-height: 400px; overflow-y: auto; margin-top: 20px;">
+                    ${books.map(book => `
+                        <div class="book-card">
+                            <h4>${book.title}</h4>
+                            <p class="book-meta"><strong>Автор:</strong> ${book.author}</p>
+                            <p class="book-meta"><strong>Жанр:</strong> ${book.genre}</p>
+                            <p class="book-meta"><strong>Статус:</strong> ${getStatusText(book.status)}</p>
+                            ${book.review ? `<p class="review"><strong>Рецензия:</strong> "${book.review}"</p>` : ''}
                         </div>
-                    </div>
-                    <div class="stat-item">
-                        <i class="fas fa-users"></i>
-                        <div>
-                            <h4>${friendsCount}</h4>
-                            <p>Друзей</p>
-                        </div>
-                    </div>
-                    <div class="stat-item">
-                        <i class="fas fa-user-friends"></i>
-                        <div>
-                            <h4>${clubsCount}</h4>
-                            <p>Клубов</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="profile-actions">
-                    ${friends.some(f => f.id === userId) ? 
-                        `<button class="btn btn-outline btn-block remove-friend-profile" data-user-id="${userId}">
-                            Удалить из друзей
-                        </button>` :
-                        `<button class="btn btn-primary btn-block add-friend-profile" data-user-id="${userId}">
-                            Добавить в друзья
-                        </button>`
-                    }
+                    `).join('')}
                 </div>
             </div>
         `;
         
-        // Добавляем плашку на страницу
-        const profileContainer = document.createElement('div');
-        profileContainer.className = 'profile-container';
-        profileContainer.innerHTML = profileHTML;
+        document.body.appendChild(modal);
         
-        // Вставляем плашку перед списком поиска
-        const searchResults = document.getElementById('searchResults');
-        if (searchResults) {
-            searchResults.parentNode.insertBefore(profileContainer, searchResults);
-        }
+        modal.querySelector('.close').addEventListener('click', () => {
+            modal.remove();
+        });
         
-        // Добавляем обработчики событий для плашки
-        const closeBtn = profileContainer.querySelector('.close-profile');
-        if (closeBtn) {
-            closeBtn.addEventListener('click', () => {
-                profileContainer.remove();
-            });
-        }
-        
-        const addFriendBtn = profileContainer.querySelector('.add-friend-profile');
-        const removeFriendBtn = profileContainer.querySelector('.remove-friend-profile');
-        
-        if (addFriendBtn) {
-            addFriendBtn.addEventListener('click', async () => {
-                await sendFriendRequest(userId);
-                profileContainer.remove();
-            });
-        }
-        
-        if (removeFriendBtn) {
-            removeFriendBtn.addEventListener('click', async () => {
-                if (confirm('Удалить из друзей?')) {
-                    await removeFriend(userId);
-                    profileContainer.remove();
-                }
-            });
-        }
-        
-        // Закрываем плашку при клике вне её
-        setTimeout(() => {
-            const closeProfileOnOutsideClick = (e) => {
-                if (!profileContainer.contains(e.target)) {
-                    profileContainer.remove();
-                    document.removeEventListener('click', closeProfileOnOutsideClick);
-                }
-            };
-            
-            document.addEventListener('click', closeProfileOnOutsideClick);
-        }, 100);
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        });
         
     } catch (error) {
-        console.error('Ошибка загрузки профиля:', error);
-        showNotification('Ошибка загрузки профиля', 'error');
+        console.error('Ошибка загрузки книг пользователя:', error);
+        showNotification('Ошибка загрузки книг', 'error');
+    }
+}
+
+function getStatusText(status) {
+    switch(status) {
+        case 'read': return 'Прочитано';
+        case 'reading': return 'Читаю сейчас';
+        case 'want': return 'Хочу прочитать';
+        default: return status;
     }
 }
 
@@ -1084,7 +1026,7 @@ async function sendFriendRequest(friendId) {
         console.log(`📨 Отправка запроса в друзья пользователю: ${friendId}`);
         
         // Проверяем, не отправили ли уже запрос
-        const existingRequest = await db.collection('friends')
+        const existingRequest = await db.collection('friendRequests')
             .where('senderId', '==', currentUser.id)
             .where('receiverId', '==', friendId)
             .where('status', '==', 'pending')
@@ -1112,7 +1054,7 @@ async function sendFriendRequest(friendId) {
             createdAt: new Date().toISOString()
         };
         
-        await db.collection('friends').add(requestData);
+        await db.collection('friendRequests').add(requestData);
         
         showNotification('Запрос в друзья отправлен', 'success');
         
@@ -1172,16 +1114,34 @@ async function loadFriendRequests() {
     try {
         console.log("📨 Загрузка запросов в друзья...");
         
-        const snapshot = await db.collection('friends')
+        // Загружаем входящие запросы
+        const incomingSnapshot = await db.collection('friendRequests')
             .where('receiverId', '==', currentUser.id)
             .where('status', '==', 'pending')
             .get();
         
+        // Загружаем исходящие запросы
+        const outgoingSnapshot = await db.collection('friendRequests')
+            .where('senderId', '==', currentUser.id)
+            .where('status', '==', 'pending')
+            .get();
+        
         friendRequests = [];
-        snapshot.forEach(doc => {
+        
+        incomingSnapshot.forEach(doc => {
             friendRequests.push({
                 id: doc.id,
-                ...doc.data()
+                ...doc.data(),
+                type: 'incoming'
+            });
+        });
+        
+        // Добавляем исходящие запросы для проверки статуса
+        outgoingSnapshot.forEach(doc => {
+            friendRequests.push({
+                id: doc.id,
+                ...doc.data(),
+                type: 'outgoing'
             });
         });
         
@@ -1223,8 +1183,8 @@ function updateFriendsDisplay() {
                 </div>
             </div>
             <div class="friend-actions">
-                <button class="btn btn-outline btn-small view-friend-profile" data-user-id="${friend.id}">
-                    Профиль
+                <button class="btn btn-outline btn-small view-friend-books" data-user-id="${friend.id}">
+                    Книги
                 </button>
                 <button class="btn btn-outline btn-small remove-friend" data-user-id="${friend.id}">
                     Удалить
@@ -1235,10 +1195,10 @@ function updateFriendsDisplay() {
     
     if (friendsCount) friendsCount.textContent = friends.length;
     
-    document.querySelectorAll('.view-friend-profile').forEach(btn => {
+    document.querySelectorAll('.view-friend-books').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             const userId = e.target.dataset.userId;
-            await showUserProfile(userId);
+            await showUserBooks(userId);
         });
     });
     
@@ -1259,13 +1219,16 @@ function updateRequestsDisplay() {
         return;
     }
     
-    if (friendRequests.length === 0) {
+    // Фильтруем только входящие запросы
+    const incomingRequests = friendRequests.filter(r => r.type === 'incoming');
+    
+    if (incomingRequests.length === 0) {
         requestsList.innerHTML = '<p class="empty">Нет заявок в друзья</p>';
         if (requestsCount) requestsCount.textContent = '0';
         return;
     }
     
-    requestsList.innerHTML = friendRequests.map(request => `
+    requestsList.innerHTML = incomingRequests.map(request => `
         <div class="request-item">
             <div class="friend-info">
                 <div class="user-avatar">
@@ -1278,7 +1241,7 @@ function updateRequestsDisplay() {
                 </div>
             </div>
             <div class="friend-actions">
-                <button class="btn btn-primary btn-small accept-request" data-request-id="${request.id}">
+                <button class="btn btn-primary btn-small accept-request" data-request-id="${request.id}" data-sender-id="${request.senderId}">
                     Принять
                 </button>
                 <button class="btn btn-outline btn-small decline-request" data-request-id="${request.id}">
@@ -1288,49 +1251,54 @@ function updateRequestsDisplay() {
         </div>
     `).join('');
     
-    if (requestsCount) requestsCount.textContent = friendRequests.length;
+    if (requestsCount) requestsCount.textContent = incomingRequests.length;
     
-    document.querySelectorAll('.accept-request, .decline-request').forEach(btn => {
+    document.querySelectorAll('.accept-request').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             const requestId = e.target.dataset.requestId;
-            const action = e.target.classList.contains('accept-request') ? 'accept' : 'decline';
-            await handleFriendRequest(requestId, action);
+            const senderId = e.target.dataset.senderId;
+            await handleFriendRequest(requestId, senderId, 'accept');
+        });
+    });
+    
+    document.querySelectorAll('.decline-request').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const requestId = e.target.dataset.requestId;
+            await handleFriendRequest(requestId, null, 'decline');
         });
     });
 }
 
-async function handleFriendRequest(requestId, action) {
+async function handleFriendRequest(requestId, senderId, action) {
     if (!currentUser) return;
     
     try {
         console.log(`🔄 Обработка запроса в друзья: ${requestId}, действие: ${action}`);
         
-        const requestDoc = await db.collection('friends').doc(requestId).get();
+        const requestDoc = await db.collection('friendRequests').doc(requestId).get();
         if (!requestDoc.exists) {
             throw new Error('Запрос не найден');
         }
         
-        const requestData = requestDoc.data();
-        
         if (action === 'accept') {
             // Обновляем статус запроса
-            await db.collection('friends').doc(requestId).update({
+            await db.collection('friendRequests').doc(requestId).update({
                 status: 'accepted'
             });
             
             // Добавляем друг другу в списки друзей
             await db.collection('users').doc(currentUser.id).update({
-                friends: firebase.firestore.FieldValue.arrayUnion(requestData.senderId)
+                friends: firebase.firestore.FieldValue.arrayUnion(senderId)
             });
             
-            await db.collection('users').doc(requestData.senderId).update({
+            await db.collection('users').doc(senderId).update({
                 friends: firebase.firestore.FieldValue.arrayUnion(currentUser.id)
             });
             
             showNotification('Заявка принята! Теперь вы друзья.', 'success');
         } else {
             // Отклоняем запрос
-            await db.collection('friends').doc(requestId).update({
+            await db.collection('friendRequests').doc(requestId).update({
                 status: 'declined'
             });
             
@@ -1371,8 +1339,8 @@ async function removeFriend(friendId) {
             friends: firebase.firestore.FieldValue.arrayRemove(currentUser.id)
         });
         
-        // Удаляем запись о дружбе из коллекции friends
-        const snapshot = await db.collection('friends')
+        // Находим и удаляем запись о дружбе из коллекции friendRequests
+        const snapshot = await db.collection('friendRequests')
             .where('senderId', 'in', [currentUser.id, friendId])
             .where('receiverId', 'in', [currentUser.id, friendId])
             .where('status', '==', 'accepted')
@@ -1380,7 +1348,7 @@ async function removeFriend(friendId) {
             .get();
         
         snapshot.forEach(async doc => {
-            await db.collection('friends').doc(doc.id).delete();
+            await db.collection('friendRequests').doc(doc.id).delete();
         });
         
         showNotification('Друг удален', 'info');
