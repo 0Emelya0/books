@@ -893,7 +893,7 @@ async function getUserBooksStats(userId) {
 }
 
 // ==============================================
-// ДРУЗЬЯ
+// ДРУЗЬЯ - ИСПРАВЛЕННЫЕ ФУНКЦИИ
 // ==============================================
 async function loadAllUsers() {
     if (!currentUser) return;
@@ -940,26 +940,29 @@ async function searchFriends() {
         return;
     }
     
+    console.log(`🔍 Поиск пользователей по запросу: ${searchTerm}`);
     showNotification('Поиск пользователей...', 'info');
     
     try {
-        const snapshot = await db.collection('users')
-            .where('username', '>=', searchTerm)
-            .where('username', '<=', searchTerm + '\uf8ff')
-            .get();
+        // Сначала получим всех пользователей
+        const snapshot = await db.collection('users').get();
         
         const results = [];
         snapshot.forEach(doc => {
             const userData = doc.data();
             if (doc.id !== currentUser.id) {
-                results.push({
-                    id: doc.id,
-                    username: userData.username,
-                    books: userData.books || [],
-                    clubs: userData.clubs || [],
-                    friends: userData.friends || [],
-                    createdAt: userData.createdAt || new Date().toISOString()
-                });
+                const username = userData.username.toLowerCase();
+                // Простой поиск по подстроке
+                if (username.includes(searchTerm)) {
+                    results.push({
+                        id: doc.id,
+                        username: userData.username,
+                        books: userData.books || [],
+                        clubs: userData.clubs || [],
+                        friends: userData.friends || [],
+                        createdAt: userData.createdAt || new Date().toISOString()
+                    });
+                }
             }
         });
         
@@ -989,7 +992,7 @@ async function searchFriends() {
         
     } catch (error) {
         console.error('Ошибка поиска пользователей:', error);
-        showNotification('Ошибка поиска пользователей', 'error');
+        showNotification('Ошибка поиска пользователей: ' + error.message, 'error');
     }
 }
 
@@ -1075,19 +1078,29 @@ function displaySearchResults(users) {
         `;
     }).join('');
     
-    // Добавляем обработчики событий
-    document.querySelectorAll('.send-friend-request').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-            const userId = e.target.dataset.userId;
-            await sendFriendRequest(userId);
-        });
-    });
-    
-    document.querySelectorAll('.view-user-books').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-            const userId = e.target.dataset.userId;
-            await showUserBooks(userId);
-        });
+    // Добавляем обработчики событий с делегированием
+    searchResults.addEventListener('click', async (e) => {
+        const target = e.target;
+        
+        // Обработка кнопки "Добавить в друзья"
+        if (target.classList.contains('send-friend-request') || 
+            target.closest('.send-friend-request')) {
+            const btn = target.classList.contains('send-friend-request') ? target : target.closest('.send-friend-request');
+            const userId = btn.dataset.userId;
+            if (userId) {
+                await sendFriendRequest(userId);
+            }
+        }
+        
+        // Обработка кнопки "Посмотреть книги"
+        if (target.classList.contains('view-user-books') || 
+            target.closest('.view-user-books')) {
+            const btn = target.classList.contains('view-user-books') ? target : target.closest('.view-user-books');
+            const userId = btn.dataset.userId;
+            if (userId) {
+                await showUserBooks(userId);
+            }
+        }
     });
 }
 
@@ -1105,11 +1118,6 @@ async function showUserBooks(userId) {
             .where('userId', '==', userId)
             .get();
         
-        if (snapshot.empty) {
-            showNotification('У пользователя пока нет книг', 'info');
-            return;
-        }
-        
         const books = [];
         snapshot.forEach(doc => {
             books.push({
@@ -1117,6 +1125,11 @@ async function showUserBooks(userId) {
                 ...doc.data()
             });
         });
+        
+        if (books.length === 0) {
+            showNotification('У пользователя пока нет книг', 'info');
+            return;
+        }
         
         const modal = document.createElement('div');
         modal.className = 'modal';
@@ -1175,6 +1188,7 @@ async function sendFriendRequest(friendId) {
     try {
         console.log(`📨 Отправка запроса в друзья пользователю: ${friendId}`);
         
+        // Проверяем, не отправили ли уже запрос
         const existingRequest = await db.collection('friendRequests')
             .where('senderId', '==', currentUser.id)
             .where('receiverId', '==', friendId)
@@ -1187,6 +1201,7 @@ async function sendFriendRequest(friendId) {
             return;
         }
         
+        // Проверяем, не друзья ли уже
         const userDoc = await db.collection('users').doc(currentUser.id).get();
         const userData = userDoc.data();
         if (userData.friends && userData.friends.includes(friendId)) {
@@ -1206,8 +1221,10 @@ async function sendFriendRequest(friendId) {
         
         showNotification('Запрос в друзья отправлен', 'success');
         
+        // Обновляем список запросов
         await loadFriendRequests();
         
+        // Обновляем результаты поиска
         const searchInput = document.getElementById('friendSearch');
         if (searchInput && searchInput.value.trim()) {
             await searchFriends();
@@ -1215,7 +1232,7 @@ async function sendFriendRequest(friendId) {
         
     } catch (error) {
         console.error('Ошибка отправки запроса:', error);
-        showNotification('Ошибка отправки запроса', 'error');
+        showNotification('Ошибка отправки запроса: ' + error.message, 'error');
     }
 }
 
@@ -1256,7 +1273,7 @@ async function loadFriends() {
         
     } catch (error) {
         console.error('❌ Ошибка загрузки друзей:', error);
-        showNotification('Ошибка загрузки друзей', 'error');
+        showNotification('Ошибка загрузки друзей: ' + error.message, 'error');
     }
 }
 
@@ -1266,11 +1283,13 @@ async function loadFriendRequests() {
     try {
         console.log("📨 Загрузка запросов в друзья...");
         
+        // Входящие запросы
         const incomingSnapshot = await db.collection('friendRequests')
             .where('receiverId', '==', currentUser.id)
             .where('status', '==', 'pending')
             .get();
         
+        // Исходящие запросы
         const outgoingSnapshot = await db.collection('friendRequests')
             .where('senderId', '==', currentUser.id)
             .where('status', '==', 'pending')
@@ -1294,13 +1313,13 @@ async function loadFriendRequests() {
             });
         });
         
-        console.log(`✅ Загружено ${friendRequests.length} запросов`);
+        console.log(`✅ Загружено ${friendRequests.length} запросов (${incomingSnapshot.size} входящих, ${outgoingSnapshot.size} исходящих)`);
         
         updateRequestsDisplay();
         
     } catch (error) {
         console.error('❌ Ошибка загрузки запросов:', error);
-        showNotification('Ошибка загрузки запросов', 'error');
+        showNotification('Ошибка загрузки запросов: ' + error.message, 'error');
     }
 }
 
@@ -1379,18 +1398,29 @@ function updateFriendsDisplay() {
     
     if (friendsCount) friendsCount.textContent = friends.length;
     
-    document.querySelectorAll('.view-friend-books').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-            const userId = e.target.dataset.userId;
-            await showUserBooks(userId);
-        });
-    });
-    
-    document.querySelectorAll('.remove-friend').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-            const userId = e.target.dataset.userId;
-            await removeFriend(userId);
-        });
+    // Используем делегирование событий для динамически созданных кнопок
+    friendsList.addEventListener('click', async (e) => {
+        const target = e.target;
+        
+        // Обработка кнопки "Книги"
+        if (target.classList.contains('view-friend-books') || 
+            target.closest('.view-friend-books')) {
+            const btn = target.classList.contains('view-friend-books') ? target : target.closest('.view-friend-books');
+            const userId = btn.dataset.userId;
+            if (userId) {
+                await showUserBooks(userId);
+            }
+        }
+        
+        // Обработка кнопки "Удалить"
+        if (target.classList.contains('remove-friend') || 
+            target.closest('.remove-friend')) {
+            const btn = target.classList.contains('remove-friend') ? target : target.closest('.remove-friend');
+            const userId = btn.dataset.userId;
+            if (userId) {
+                await removeFriend(userId);
+            }
+        }
     });
 }
 
@@ -1420,7 +1450,7 @@ function updateRequestsDisplay() {
                 <div>
                     <h4>${request.senderName}</h4>
                     <p class="friend-meta">Хочет добавить вас в друзья</p>
-                    <small>${request.createdAt ? new Date(request.createdAt).toLocaleDateString() : 'Недавно'}</small>
+                    <small>${request.createdAt ? new Date(request.createdAt).toLocaleDateString('ru-RU') : 'Недавно'}</small>
                 </div>
             </div>
             <div class="friend-actions">
@@ -1436,19 +1466,30 @@ function updateRequestsDisplay() {
     
     if (requestsCount) requestsCount.textContent = incomingRequests.length;
     
-    document.querySelectorAll('.accept-request').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-            const requestId = e.target.dataset.requestId;
-            const senderId = e.target.dataset.senderId;
-            await handleFriendRequest(requestId, senderId, 'accept');
-        });
-    });
-    
-    document.querySelectorAll('.decline-request').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-            const requestId = e.target.dataset.requestId;
-            await handleFriendRequest(requestId, null, 'decline');
-        });
+    // Используем делегирование событий
+    requestsList.addEventListener('click', async (e) => {
+        const target = e.target;
+        
+        // Обработка кнопки "Принять"
+        if (target.classList.contains('accept-request') || 
+            target.closest('.accept-request')) {
+            const btn = target.classList.contains('accept-request') ? target : target.closest('.accept-request');
+            const requestId = btn.dataset.requestId;
+            const senderId = btn.dataset.senderId;
+            if (requestId && senderId) {
+                await handleFriendRequest(requestId, senderId, 'accept');
+            }
+        }
+        
+        // Обработка кнопки "Отклонить"
+        if (target.classList.contains('decline-request') || 
+            target.closest('.decline-request')) {
+            const btn = target.classList.contains('decline-request') ? target : target.closest('.decline-request');
+            const requestId = btn.dataset.requestId;
+            if (requestId) {
+                await handleFriendRequest(requestId, null, 'decline');
+            }
+        }
     });
 }
 
@@ -1463,11 +1504,15 @@ async function handleFriendRequest(requestId, senderId, action) {
             throw new Error('Запрос не найден');
         }
         
+        const requestData = requestDoc.data();
+        
         if (action === 'accept') {
+            // Обновляем статус запроса
             await db.collection('friendRequests').doc(requestId).update({
                 status: 'accepted'
             });
             
+            // Добавляем друг друга в списки друзей
             await db.collection('users').doc(currentUser.id).update({
                 friends: firebase.firestore.FieldValue.arrayUnion(senderId)
             });
@@ -1478,6 +1523,7 @@ async function handleFriendRequest(requestId, senderId, action) {
             
             showNotification('Заявка принята! Теперь вы друзья.', 'success');
         } else {
+            // Отклоняем запрос
             await db.collection('friendRequests').doc(requestId).update({
                 status: 'declined'
             });
@@ -1485,9 +1531,11 @@ async function handleFriendRequest(requestId, senderId, action) {
             showNotification('Заявка отклонена', 'info');
         }
         
+        // Обновляем данные
         await loadFriends();
         await loadFriendRequests();
         
+        // Обновляем результаты поиска, если есть активный поиск
         const searchInput = document.getElementById('friendSearch');
         if (searchInput && searchInput.value.trim()) {
             await searchFriends();
@@ -1495,41 +1543,53 @@ async function handleFriendRequest(requestId, senderId, action) {
         
     } catch (error) {
         console.error('Ошибка обработки запроса:', error);
-        showNotification('Ошибка обработки заявки', 'error');
+        showNotification('Ошибка обработки заявки: ' + error.message, 'error');
     }
 }
 
 async function removeFriend(friendId) {
-    if (!confirm('Удалить из друзей?')) return;
+    if (!currentUser) {
+        showNotification('Войдите в систему', 'error');
+        return;
+    }
     
-    if (!currentUser) return;
+    if (!confirm('Вы действительно хотите удалить этого пользователя из друзей?')) {
+        return;
+    }
     
     try {
         console.log(`🗑️ Удаление друга: ${friendId}`);
         
+        // Удаляем из списка друзей текущего пользователя
         await db.collection('users').doc(currentUser.id).update({
             friends: firebase.firestore.FieldValue.arrayRemove(friendId)
         });
         
+        // Удаляем текущего пользователя из списка друзей друга
         await db.collection('users').doc(friendId).update({
             friends: firebase.firestore.FieldValue.arrayRemove(currentUser.id)
         });
         
-        const snapshot = await db.collection('friendRequests')
+        // Ищем и удаляем все запросы в друзья между этими пользователями
+        const requestsSnapshot = await db.collection('friendRequests')
             .where('senderId', 'in', [currentUser.id, friendId])
             .where('receiverId', 'in', [currentUser.id, friendId])
-            .where('status', '==', 'accepted')
-            .limit(1)
             .get();
         
-        snapshot.forEach(async doc => {
-            await db.collection('friendRequests').doc(doc.id).delete();
+        const deletePromises = [];
+        requestsSnapshot.forEach(doc => {
+            deletePromises.push(db.collection('friendRequests').doc(doc.id).delete());
         });
         
-        showNotification('Друг удален', 'info');
+        await Promise.all(deletePromises);
         
+        showNotification('Пользователь удален из друзей', 'info');
+        
+        // Обновляем данные
         await loadFriends();
+        await loadFriendRequests();
         
+        // Обновляем результаты поиска, если есть активный поиск
         const searchInput = document.getElementById('friendSearch');
         if (searchInput && searchInput.value.trim()) {
             await searchFriends();
@@ -1537,7 +1597,7 @@ async function removeFriend(friendId) {
         
     } catch (error) {
         console.error('Ошибка удаления друга:', error);
-        showNotification('Ошибка удаления друга', 'error');
+        showNotification('Ошибка удаления друга: ' + error.message, 'error');
     }
 }
 
@@ -1680,7 +1740,7 @@ async function restoreUserSession(sessionData) {
     } catch (error) {
         console.error('❌ Ошибка восстановления сессии:', error);
         localStorage.removeItem('bookShelfSession');
-        showNotification('Ошибка восстановления сессии', 'error');
+        showNotification('Ошибка восстановления сессии: ' + error.message, 'error');
     }
 }
 
