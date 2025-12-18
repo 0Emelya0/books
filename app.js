@@ -50,8 +50,9 @@ function showNotification(message, type = 'info') {
     notification.style.cssText = `
         position: fixed;
         top: 20px;
-        right: 20px;
-        padding: 16px 24px;
+        right: 16px;
+        left: 16px;
+        padding: 14px 20px;
         background: ${type === 'success' ? 'linear-gradient(135deg, #67c23a 0%, #85ce61 100%)' : 
                    type === 'error' ? 'linear-gradient(135deg, #f56c6c 0%, #f78989 100%)' : 
                    'linear-gradient(135deg, #8a9eff 0%, #a991f7 100%)'};
@@ -61,8 +62,8 @@ function showNotification(message, type = 'info') {
         z-index: 3000;
         animation: slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         font-weight: 500;
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
+        text-align: center;
+        font-size: 14px;
         border: 1px solid rgba(255, 255, 255, 0.2);
     `;
     
@@ -84,12 +85,24 @@ if (!document.querySelector('#notification-styles')) {
     style.id = 'notification-styles';
     style.textContent = `
         @keyframes slideIn {
-            from { transform: translateX(100%) translateY(-20px); opacity: 0; }
-            to { transform: translateX(0) translateY(0); opacity: 1; }
+            from { 
+                transform: translateY(-100%); 
+                opacity: 0; 
+            }
+            to { 
+                transform: translateY(0); 
+                opacity: 1; 
+            }
         }
         @keyframes slideOut {
-            from { transform: translateX(0) translateY(0); opacity: 1; }
-            to { transform: translateX(100%) translateY(-20px); opacity: 0; }
+            from { 
+                transform: translateY(0); 
+                opacity: 1; 
+            }
+            to { 
+                transform: translateY(-100%); 
+                opacity: 0; 
+            }
         }
     `;
     document.head.appendChild(style);
@@ -131,6 +144,12 @@ function restoreSession() {
 function switchPage(pageId) {
     console.log(`📄 Переход на: ${pageId}`);
     
+    // Закрываем мобильное меню если открыто
+    const navLinks = document.querySelector('.nav-links');
+    if (navLinks && navLinks.classList.contains('active')) {
+        navLinks.classList.remove('active');
+    }
+    
     const pages = document.querySelectorAll('.page');
     pages.forEach(page => {
         page.classList.remove('active');
@@ -143,7 +162,6 @@ function switchPage(pageId) {
         setTimeout(() => {
             page.classList.add('active');
         }, 10);
-        document.body.className = `${pageId}-page`;
     }
     
     document.querySelectorAll('.nav-link').forEach(link => {
@@ -363,14 +381,24 @@ function updateUI() {
     const currentUserSpan = document.getElementById('currentUser');
     
     if (currentUser) {
-        authButtons.style.display = 'none';
-        userMenu.style.display = 'flex';
+        if (window.innerWidth <= 768) {
+            authButtons.style.display = 'none';
+            userMenu.style.display = 'flex';
+        } else {
+            authButtons.style.display = 'none';
+            userMenu.style.display = 'flex';
+        }
         
         if (userName) userName.textContent = currentUser.username;
         if (currentUserSpan) currentUserSpan.textContent = currentUser.username;
     } else {
-        authButtons.style.display = 'flex';
-        userMenu.style.display = 'none';
+        if (window.innerWidth <= 768) {
+            authButtons.style.display = 'none';
+            userMenu.style.display = 'none';
+        } else {
+            authButtons.style.display = 'flex';
+            userMenu.style.display = 'none';
+        }
         if (currentUserSpan) currentUserSpan.textContent = 'Добро пожаловать!';
     }
 }
@@ -710,7 +738,7 @@ function updateClubsDisplay(clubs) {
                 <p class="book-meta"><strong>Жанр:</strong> ${club.genre}</p>
                 <p class="book-meta"><strong>Создатель:</strong> ${club.ownerName}</p>
                 <p class="book-meta"><strong>Участников:</strong> ${club.membersCount || 1}</p>
-                <p>${club.description}</p>
+                <p class="book-description">${club.description}</p>
                 <div class="club-actions">
                     <button class="btn ${isMember ? 'btn-outline' : 'btn-primary'} btn-small join-club" 
                             data-club-id="${club.id}">
@@ -742,7 +770,7 @@ function updateMyClubsDisplay(clubs) {
         <div class="book-card">
             <h4>${club.name}</h4>
             <p class="book-meta"><strong>Жанр:</strong> ${club.genre}</p>
-            <p>${club.description}</p>
+            <p class="book-description">${club.description}</p>
             <div class="club-actions">
                 <span class="badge">${club.membersCount || 1} участников</span>
             </div>
@@ -1487,6 +1515,51 @@ async function removeFriend(friendId) {
 }
 
 // ==============================================
+// МОБИЛЬНОЕ МЕНЮ
+// ==============================================
+function setupMobileMenu() {
+    const menuToggle = document.querySelector('.menu-toggle');
+    const navLinks = document.querySelector('.nav-links');
+    
+    if (!menuToggle || !navLinks) return;
+    
+    menuToggle.addEventListener('click', function(e) {
+        e.stopPropagation();
+        navLinks.classList.toggle('active');
+        
+        // Анимация иконки бургер-меню
+        const icon = this.querySelector('i');
+        if (navLinks.classList.contains('active')) {
+            icon.classList.remove('fa-bars');
+            icon.classList.add('fa-times');
+        } else {
+            icon.classList.remove('fa-times');
+            icon.classList.add('fa-bars');
+        }
+    });
+    
+    // Закрываем меню при клике на ссылку
+    document.querySelectorAll('.nav-link').forEach(link => {
+        link.addEventListener('click', () => {
+            navLinks.classList.remove('active');
+            const icon = menuToggle.querySelector('i');
+            icon.classList.remove('fa-times');
+            icon.classList.add('fa-bars');
+        });
+    });
+    
+    // Закрываем меню при клике вне его
+    document.addEventListener('click', function(e) {
+        if (!navLinks.contains(e.target) && !menuToggle.contains(e.target)) {
+            navLinks.classList.remove('active');
+            const icon = menuToggle.querySelector('i');
+            icon.classList.remove('fa-times');
+            icon.classList.add('fa-bars');
+        }
+    });
+}
+
+// ==============================================
 // НАСТРОЙКА СОБЫТИЙ
 // ==============================================
 function setupEventListeners() {
@@ -1566,18 +1639,15 @@ function setupEventListeners() {
     }
     
     // Мобильное меню
-    const menuToggle = document.querySelector('.menu-toggle');
-    if (menuToggle) {
-        menuToggle.addEventListener('click', function() {
-            const navLinks = document.querySelector('.nav-links');
-            if (navLinks) navLinks.classList.toggle('active');
-        });
-    }
+    setupMobileMenu();
     
     // Сохраняем сессию при закрытии страницы
     window.addEventListener('beforeunload', () => {
         saveSession();
     });
+    
+    // Обновляем UI при изменении размера окна
+    window.addEventListener('resize', updateUI);
     
     console.log("✅ Обработчики событий настроены");
 }
