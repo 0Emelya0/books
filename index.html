@@ -19,56 +19,62 @@
     <div class="container">
         <!-- Навигация -->
         <nav class="navbar">
-            <div class="logo">
-                <i class="fas fa-book"></i>
-                <span>BookShelf</span>
-            </div>
-            
-            <button class="menu-toggle">
-                <i class="fas fa-bars"></i>
-            </button>
-            
-            <div class="nav-links">
-                <a href="#" class="nav-link" data-page="home">
-                    <i class="fas fa-home"></i>
-                    <span class="nav-text">Главная</span>
-                </a>
-                <a href="#" class="nav-link" data-page="shelf">
-                    <i class="fas fa-book-open"></i>
-                    <span class="nav-text">Моя полка</span>
-                </a>
-                <a href="#" class="nav-link" data-page="clubs">
-                    <i class="fas fa-users"></i>
-                    <span class="nav-text">Клубы</span>
-                </a>
-                <a href="#" class="nav-link" data-page="friends">
-                    <i class="fas fa-user-friends"></i>
-                    <span class="nav-text">Друзья</span>
-                </a>
-            </div>
-            
-            <div class="auth-buttons">
-                <button id="loginBtn" class="btn btn-outline">
-                    <i class="fas fa-sign-in-alt"></i>
-                    <span>Войти</span>
-                </button>
-                <button id="registerBtn" class="btn btn-primary">
-                    <i class="fas fa-user-plus"></i>
-                    <span>Регистрация</span>
-                </button>
-            </div>
-            
-            <div class="user-menu">
-                <div class="user-info">
-                    <div class="user-avatar">
-                        <i class="fas fa-user"></i>
-                    </div>
-                    <span id="userName"></span>
+            <div class="nav-header">
+                <div class="logo">
+                    <i class="fas fa-book"></i>
+                    <span>BookShelf</span>
                 </div>
-                <button id="logoutBtn" class="btn btn-outline btn-small">
-                    <i class="fas fa-sign-out-alt"></i>
-                    <span>Выйти</span>
+                
+                <button class="menu-toggle" id="menuToggle">
+                    <i class="fas fa-bars"></i>
                 </button>
+            </div>
+            
+            <div class="nav-content" id="navContent">
+                <div class="nav-links">
+                    <a href="#" class="nav-link" data-page="home">
+                        <i class="fas fa-home"></i>
+                        Главная
+                    </a>
+                    <a href="#" class="nav-link" data-page="shelf">
+                        <i class="fas fa-book-open"></i>
+                        Моя полка
+                    </a>
+                    <a href="#" class="nav-link" data-page="clubs">
+                        <i class="fas fa-users"></i>
+                        Клубы
+                    </a>
+                    <a href="#" class="nav-link" data-page="friends">
+                        <i class="fas fa-user-friends"></i>
+                        Друзья
+                    </a>
+                </div>
+                
+                <div class="nav-right">
+                    <div class="auth-buttons" id="authButtons">
+                        <button id="loginBtn" class="btn btn-outline">
+                            <i class="fas fa-sign-in-alt"></i>
+                            Войти
+                        </button>
+                        <button id="registerBtn" class="btn btn-primary">
+                            <i class="fas fa-user-plus"></i>
+                            Регистрация
+                        </button>
+                    </div>
+                    
+                    <div class="user-menu" id="userMenu">
+                        <div class="user-info">
+                            <div class="user-avatar">
+                                <i class="fas fa-user"></i>
+                            </div>
+                            <span id="userName"></span>
+                        </div>
+                        <button id="logoutBtn" class="btn btn-outline btn-small">
+                            <i class="fas fa-sign-out-alt"></i>
+                            Выйти
+                        </button>
+                    </div>
+                </div>
             </div>
         </nav>
 
@@ -77,9 +83,9 @@
             <div class="hero">
                 <h1>Ваша цифровая книжная полка</h1>
                 <p>Организуйте свою библиотеку, делитесь впечатлениями и находите единомышленников в уютном сообществе читателей</p>
-                <button id="startBtn" class="btn btn-primary">
+                <button id="startBtn" class="btn btn-primary" style="font-size: 18px; padding: 18px 40px;">
                     <i class="fas fa-rocket"></i>
-                    <span>Начать путешествие</span>
+                    Начать путешествие
                 </button>
             </div>
             
@@ -194,12 +200,12 @@
                 
                 <div class="form-group">
                     <label for="bookReview">Рецензия (необязательно)</label>
-                    <textarea id="bookReview" rows="3" placeholder="Поделитесь своими впечатлениями о книге..."></textarea>
+                    <textarea id="bookReview" rows="4" placeholder="Поделитесь своими впечатлениями о книге..."></textarea>
                 </div>
                 
                 <button id="addBookBtn" class="btn btn-primary btn-block">
                     <i class="fas fa-plus"></i>
-                    <span>Добавить на полку</span>
+                    Добавить на полку
                 </button>
             </div>
             
@@ -207,15 +213,15 @@
             <div class="tabs">
                 <div class="tab active" data-status="read">
                     <i class="fas fa-check-circle"></i>
-                    <span>Прочитано</span>
+                    Прочитано
                 </div>
                 <div class="tab" data-status="reading">
                     <i class="fas fa-book-reader"></i>
-                    <span>Читаю сейчас</span>
+                    Читаю сейчас
                 </div>
                 <div class="tab" data-status="want">
                     <i class="fas fa-heart"></i>
-                    <span>Хочу прочитать</span>
+                    Хочу прочитать
                 </div>
             </div>
             
@@ -249,11 +255,11 @@
                         </div>
                         <div class="form-group">
                             <label for="clubDescription">Описание *</label>
-                            <textarea id="clubDescription" rows="3" placeholder="Опишите тематику вашего клуба..."></textarea>
+                            <textarea id="clubDescription" rows="5" placeholder="Опишите тематику вашего клуба..."></textarea>
                         </div>
                         <button id="createClubBtn" class="btn btn-primary btn-block">
                             <i class="fas fa-plus"></i>
-                            <span>Создать клуб</span>
+                            Создать клуб
                         </button>
                     </div>
                     
