@@ -197,9 +197,9 @@ body::after {
     z-index: 1;
 }
 
-/* Навигация */
+/* Навигация - ИСПРАВЛЕНА ДЛЯ МОБИЛЬНЫХ */
 .navbar {
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(255, 255, 255, 0.98);
     border-radius: var(--radius-lg);
     padding: 16px;
     display: flex;
@@ -210,7 +210,6 @@ body::after {
     border: 1px solid rgba(255, 255, 255, 0.4);
     position: relative;
     overflow: hidden;
-    flex-wrap: wrap;
 }
 
 .navbar::before {
@@ -255,9 +254,6 @@ body::after {
     background: rgba(248, 249, 252, 0.9);
     padding: 4px;
     border-radius: var(--radius-md);
-    flex: 1;
-    justify-content: center;
-    margin: 0 10px;
 }
 
 .nav-link {
@@ -334,6 +330,7 @@ body::after {
     font-size: 14px;
 }
 
+/* Мобильное меню - КЛЮЧЕВЫЕ ИСПРАВЛЕНИЯ */
 .menu-toggle {
     display: none;
     background: none;
@@ -343,10 +340,16 @@ body::after {
     cursor: pointer;
     padding: 8px;
     border-radius: var(--radius-sm);
+    z-index: 1000;
+    transition: all var(--transition);
 }
 
 .menu-toggle:hover {
     background: rgba(138, 158, 255, 0.1);
+}
+
+.menu-toggle.active i {
+    transform: rotate(90deg);
 }
 
 /* Страницы */
@@ -362,11 +365,11 @@ body::after {
 @keyframes fadeIn {
     from { 
         opacity: 0; 
-        transform: translateY(20px) scale(0.98); 
+        transform: translateY(20px); 
     }
     to { 
         opacity: 1; 
-        transform: translateY(0) scale(1); 
+        transform: translateY(0); 
     }
 }
 
@@ -421,7 +424,7 @@ body::after {
 }
 
 .feature-card {
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(255, 255, 255, 0.98);
     padding: 24px 20px;
     border-radius: var(--radius-lg);
     text-align: center;
@@ -484,7 +487,7 @@ body::after {
 }
 
 .stat-card {
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(255, 255, 255, 0.98);
     padding: 20px;
     border-radius: var(--radius-lg);
     text-align: center;
@@ -530,7 +533,7 @@ body::after {
 }
 
 .book-form {
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(255, 255, 255, 0.98);
     padding: 24px;
     border-radius: var(--radius-xl);
     margin-bottom: 24px;
@@ -623,7 +626,7 @@ body::after {
     display: flex;
     gap: 8px;
     margin-bottom: 24px;
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(255, 255, 255, 0.98);
     padding: 6px;
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
@@ -671,7 +674,7 @@ body::after {
 }
 
 .book-card {
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(255, 255, 255, 0.98);
     padding: 20px;
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-md);
@@ -945,7 +948,7 @@ body::after {
 
 /* Элементы друзей */
 .friend-item {
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(255, 255, 255, 0.98);
     padding: 20px;
     border-radius: var(--radius-lg);
     margin-bottom: 16px;
@@ -1082,7 +1085,7 @@ body::after {
 .user-welcome {
     margin-bottom: 24px;
     padding: 20px;
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(255, 255, 255, 0.98);
     border-radius: var(--radius-lg);
     border-left: 4px solid var(--primary);
 }
@@ -1109,7 +1112,7 @@ body::after {
 
 /* Запросы в друзья */
 .request-item {
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(255, 255, 255, 0.98);
     padding: 20px;
     border-radius: var(--radius-lg);
     margin-bottom: 16px;
@@ -1122,7 +1125,7 @@ body::after {
     text-align: center;
     padding: 40px 24px;
     color: var(--primary);
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(255, 255, 255, 0.98);
     border-radius: var(--radius-lg);
     font-size: 16px;
     box-shadow: var(--shadow-md);
@@ -1619,47 +1622,117 @@ h3 {
     }
 }
 
-/* Мобильное меню */
+/* ==============================================
+   МОБИЛЬНОЕ МЕНЮ - КЛЮЧЕВЫЕ ИСПРАВЛЕНИЯ
+   ============================================== */
 @media (max-width: 768px) {
     .menu-toggle {
         display: block;
+        order: 1;
+    }
+
+    .logo {
+        order: 0;
+        flex: 1;
+    }
+
+    .auth-buttons {
+        order: 2;
+        display: flex;
+    }
+
+    .user-menu {
+        order: 2;
+        display: none;
     }
 
     .nav-links {
         display: none;
         position: absolute;
         top: 100%;
-        left: 16px;
-        right: 16px;
+        left: 0;
+        right: 0;
         background: rgba(255, 255, 255, 0.98);
         flex-direction: column;
         padding: 20px;
-        border-radius: var(--radius-lg);
+        border-radius: 0 0 var(--radius-lg) var(--radius-lg);
         box-shadow: var(--shadow-lg);
         z-index: 100;
-        margin-top: 10px;
+        margin-top: 0;
+        border-top: 1px solid var(--light-gray);
     }
 
     .nav-links.active {
         display: flex;
+        animation: slideDown 0.3s ease;
+    }
+
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
 
     .nav-link {
-        padding: 14px;
-        justify-content: center;
+        padding: 14px 20px;
+        justify-content: flex-start;
+        border-radius: var(--radius-md);
+        margin-bottom: 8px;
+        font-size: 16px;
+    }
+
+    .nav-link:last-child {
+        margin-bottom: 0;
+    }
+
+    .nav-link i {
+        width: 24px;
+        text-align: center;
+    }
+
+    .auth-buttons .btn {
+        padding: 10px 16px;
+        font-size: 14px;
     }
     
-    .auth-buttons {
+    .user-menu .btn {
+        padding: 10px 16px;
+        font-size: 14px;
+    }
+    
+    /* Показываем auth-buttons только когда пользователь не авторизован */
+    .user-menu.active ~ .auth-buttons {
         display: none;
     }
     
-    .user-menu {
+    .auth-buttons.active ~ .user-menu {
         display: none;
+    }
+    
+    .user-menu.active {
+        display: flex;
+    }
+    
+    .auth-buttons.active {
+        display: flex;
     }
 }
 
 @media (min-width: 769px) {
     .auth-buttons {
+        display: flex;
+    }
+    
+    .user-menu {
+        display: none;
+    }
+    
+    .user-menu.active {
         display: flex;
     }
 }
